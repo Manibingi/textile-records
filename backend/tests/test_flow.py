@@ -2,6 +2,8 @@ import os
 import tempfile
 
 os.environ["TEXTILE_DATA_DIR"] = tempfile.mkdtemp()
+os.environ["DATABASE_URL"] = ""  # always test on a throwaway SQLite file, never the real database in .env
+os.environ["APP_PASSWORD"] = ""  # no login during tests
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402

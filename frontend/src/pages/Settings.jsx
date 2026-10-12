@@ -34,17 +34,33 @@ export default function Settings() {
       </Card>
 
       <Card title="Backup — keep your records safe">
-        <p>Every time the app starts, it keeps a copy of all records for that day (last 30 days) in the <code>backend/data/backups</code> folder.</p>
-        <p>Also download a backup once a week and keep it on a pen drive or in Google Drive / email, so nothing is lost even if the computer breaks.</p>
+        {data?.online_db ? (
+          <>
+            <p>Records are kept in an online database, which also keeps its own backups. Every time the app starts, it also saves a copy of all records for that day (last 30 days) as a file in the <code>backend/data/backups</code> folder.</p>
+            <p>Also download a backup once a week and keep it on a pen drive or in Google Drive / email.</p>
+          </>
+        ) : (
+          <>
+            <p>Every time the app starts, it keeps a copy of all records for that day (last 30 days) in the <code>backend/data/backups</code> folder.</p>
+            <p>Also download a backup once a week and keep it on a pen drive or in Google Drive / email, so nothing is lost even if the computer breaks.</p>
+          </>
+        )}
         <a className="btn primary big" href="/api/backup" download>⬇ Download backup now</a>
         <details className="help">
           <summary>How to bring back records from a backup</summary>
-          <ol>
-            <li>Close the app (close the black window).</li>
-            <li>Open the folder <code>backend/data</code>.</li>
-            <li>Rename the backup file to <code>textile.db</code> and put it there, replacing the old file.</li>
-            <li>Start the app again.</li>
-          </ol>
+          {data?.online_db ? (
+            <ol>
+              <li>Use the "restore" or "point-in-time recovery" option in your online database dashboard (Neon / Supabase).</li>
+              <li>The downloaded <code>.json</code> file holds every record and can be loaded back by a technical person if needed.</li>
+            </ol>
+          ) : (
+            <ol>
+              <li>Close the app (close the black window).</li>
+              <li>Open the folder <code>backend/data</code>.</li>
+              <li>Rename the backup file to <code>textile.db</code> and put it there, replacing the old file.</li>
+              <li>Start the app again.</li>
+            </ol>
+          )}
         </details>
       </Card>
     </div>

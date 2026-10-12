@@ -1,13 +1,30 @@
 import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.environ.get("TEXTILE_DATA_DIR", os.path.join(BACKEND_DIR, "data"))
+load_dotenv(os.path.join(BACKEND_DIR, ".env"))  # values already set in the environment win
+
+DATA_DIR = os.environ.get("TEXTILE_DATA_DIR") or os.path.join(BACKEND_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "textile.db")
 
-engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+# Empty DATABASE_URL = local SQLite file. Otherwise an online PostgreSQL (Neon, Supabase, ...).
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip() or f"sqlite:///{DB_PATH}"
+# Use the psycopg (v3) driver for plain links, including the older "postgres://" form some providers hand out.
+for prefix in ("postgres://", "postgresql://"):
+    if DATABASE_URL.startswith(prefix):
+        DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len(prefix):]
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+
+if IS_SQLITE:
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    # Hosted databases close idle connections, so test each one before use and renew them regularly.
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300,
+                           pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
+                           max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "5")))
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 
 

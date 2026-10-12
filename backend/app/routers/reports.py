@@ -1,4 +1,5 @@
 """Home screen numbers, reports and backup."""
+import json
 import os
 import sqlite3
 from datetime import date
@@ -6,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import func
-from ..database import get_db, DB_PATH, DATA_DIR
+from ..database import get_db, engine, Base, DB_PATH, DATA_DIR, IS_SQLITE
 from ..models import (Purchase, Supplier, Rod, ThreadIssue, Lot, Weaver, Machine, WeaverPayment, CuttingEntry, Sale,
                       SaleItem, Customer, CustomerPayment)
 from ..util import r2, r3, d, date_filter
@@ -106,7 +107,7 @@ def machine_report(from_: Optional[date] = R(), to: Optional[date] = None, db=De
     q = db.query(Weaver.name, Machine.number, func.count(Lot.id), func.coalesce(func.sum(Lot.pieces), 0),
                  func.coalesce(func.sum(Lot.meters), 0)) \
         .join(Machine, Lot.machine_id == Machine.id).join(Weaver, Machine.weaver_id == Weaver.id)
-    q = date_filter(q, Lot.date, from_, to).group_by(Machine.id).order_by(Weaver.name, Machine.number)
+    q = date_filter(q, Lot.date, from_, to).group_by(Machine.id, Weaver.id).order_by(Weaver.name, Machine.number)
     return [{"weaver": wn, "machine": f"Machine {mn}", "lots": n, "pieces": p, "meters": r2(m)} for wn, mn, n, p, m in q]
 
 
@@ -149,7 +150,18 @@ def wastage_report(from_: Optional[date] = R(), to: Optional[date] = None, db=De
 
 
 # ---------------- Backup ----------------
+# SQLite: a copy of the .db file. PostgreSQL: every table exported to one JSON file.
+BACKUP_EXT = ".db" if IS_SQLITE else ".json"
+
+
 def make_backup(target_path):
+    if not IS_SQLITE:
+        with engine.connect() as con:
+            data = {t.name: [dict(row._mapping) for row in con.execute(t.select().order_by(*t.primary_key.columns))]
+                    for t in Base.metadata.sorted_tables}
+        with open(target_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, default=str, ensure_ascii=False, indent=1)
+        return
     src = sqlite3.connect(DB_PATH)
     dst = sqlite3.connect(target_path)
     with dst:
@@ -160,7 +172,7 @@ def make_backup(target_path):
 
 @router.get("/backup")
 def download_backup():
-    path = os.path.join(DATA_DIR, "download-backup.db")
+    path = os.path.join(DATA_DIR, "download-backup" + BACKUP_EXT)
     make_backup(path)
-    return FileResponse(path, filename=f"textile-backup-{date.today().isoformat()}.db",
+    return FileResponse(path, filename=f"textile-backup-{date.today().isoformat()}{BACKUP_EXT}",
                         media_type="application/octet-stream")

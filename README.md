@@ -39,6 +39,14 @@ Built with **FastAPI + SQLite** (backend) and **React** (screens). Everything ru
 - Every day the app starts, a copy is saved in `backend/data/backups/` (last 30 days kept).
 - **Settings & backup → Download backup now** — do this weekly and keep it on a pen drive / Google Drive.
 - All data lives in one file: `backend/data/textile.db`. To restore, close the app and replace that file with a backup.
+- If you use an online database (see below), backups are `.json` exports, and restoring is done from the Neon / Supabase dashboard.
+
+### Online database (Neon / Supabase)
+1. Create a PostgreSQL database on Neon or Supabase and copy its connection string (Neon: *Pooled connection*, Supabase: *Session pooler*).
+2. Open `backend/.env` (copy `backend/.env.example` if it is missing) and paste it after `DATABASE_URL=`.
+3. Start the app. The tables are created automatically. Records already in `textile.db` are **not** copied over.
+
+Leave `DATABASE_URL` empty to keep using the local `textile.db` file.
 
 ### Updating to a new version
 Replace the app folder with the new one but **keep `backend/data`** (your records). Older records are upgraded automatically the first time the new version starts.
@@ -62,7 +70,7 @@ cd frontend && npm install && npm run dev                                       
 ```
 After UI changes: `cd frontend && npm run build` (FastAPI serves `frontend/dist`).
 
-Tests: `cd backend && pip install pytest httpx && python -m pytest tests` (full purchase-to-sale flow).
+Tests: `cd backend && pip install pytest httpx && python -m pytest tests` (full purchase-to-sale flow; always runs on a temporary SQLite file).
 API docs: http://localhost:8000/docs
 
-Environment: `TEXTILE_DATA_DIR` changes where the database is kept.
+Environment: set in `backend/.env` (see `backend/.env.example`): `DATABASE_URL`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `TEXTILE_DATA_DIR`, `TEXTILE_UI_DIR`, `CORS_ORIGINS`.

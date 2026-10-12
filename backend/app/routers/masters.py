@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import Field
 from sqlalchemy import func
-from ..database import get_db
+from ..database import get_db, IS_SQLITE
 from ..models import (Supplier, Purchase, Weaver, Machine, Rod, Lot, WeaverPayment, ThreadIssue, Customer,
                       Sale, CustomerPayment, Setting)
 from ..util import In, get_or_404, fail, r2, r3
@@ -21,6 +21,7 @@ def get_settings(db=Depends(get_db)):
     vals = {s.key: s.value for s in db.query(Setting)}
     out = {k: vals.get(k, "") for k in SETTING_KEYS}
     out["default_rod_length"] = out["default_rod_length"] or "549"
+    out["online_db"] = not IS_SQLITE  # read-only, tells the screen which backup help to show
     return out
 
 
