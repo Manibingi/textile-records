@@ -74,3 +74,16 @@ Tests: `cd backend && pip install pytest httpx && python -m pytest tests` (full 
 API docs: http://localhost:8000/docs
 
 Environment: set in `backend/.env` (see `backend/.env.example`): `DATABASE_URL`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `TEXTILE_DATA_DIR`, `TEXTILE_UI_DIR`, `CORS_ORIGINS`.
+
+### Development with Claude Code agents
+
+New features are planned, built, reviewed and merged by Claude Code agents (see `CLAUDE.md`):
+
+| You want to… | In Claude Code, type |
+|---|---|
+| Build the next roadmap item end to end (spec → branch → PR → review → merge → deploy) | `/ship-feature` |
+| Build a specific item from `docs/roadmap.md` | `/ship-feature F-003` |
+| Add a new idea and build it | `/ship-feature "show weaver dues on the home screen"` |
+| Only get a refreshed future plan | `/ship-feature plan-only` |
+
+Agents: `.claude/agents/` (feature-planner, feature-developer, pr-reviewer-merger). Layer conventions: `.claude/skills/` (backend, frontend, database). Design: `docs/design-document.md`. Roadmap: `docs/roadmap.md`. Every merge to `main` redeploys the live site.
