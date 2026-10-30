@@ -1,6 +1,6 @@
 # F-019: Owner requests, October 2026 (one rod per machine, no lots after a finished rod, receipt totals in the Lot list, short slip and bill, no repeated bill items)
 
-Status: in-progress · Priority: 1 · Effort: M · Data risk: low · Depends on: none
+Status: in-review · Priority: 1 · Effort: M · Data risk: low · Depends on: none
 
 ## Why
 
