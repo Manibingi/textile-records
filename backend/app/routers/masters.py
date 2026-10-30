@@ -5,7 +5,7 @@ from sqlalchemy import func
 from ..database import get_db, IS_SQLITE
 from ..models import (Supplier, Purchase, Weaver, Machine, Rod, Lot, WeaverPayment, ThreadIssue, Customer,
                       Sale, CustomerPayment, Setting)
-from ..util import In, get_or_404, fail, r2, r3
+from ..util import In, get_or_404, fail, r2, r3, d
 from .. import calc
 
 router = APIRouter(prefix="/api")
@@ -102,17 +102,24 @@ class MachineIn(In):
     active: bool = True
 
 
-def machine_out(m):
-    return {"id": m.id, "weaver_id": m.weaver_id, "number": m.number, "current_design": m.current_design,
-            "current_color": m.current_color, "active": m.active,
-            "label": f"Machine {m.number}"}
+def machine_out(m, db=None):
+    out = {"id": m.id, "weaver_id": m.weaver_id, "number": m.number, "current_design": m.current_design,
+           "current_color": m.current_color, "active": m.active,
+           "label": f"Machine {m.number}"}
+    if db is not None:
+        st = calc.machine_rods(db, m.id)
+        last = st["last_finished"]
+        out["running_rods"] = [r.code for r in st["running"]]
+        out["last_finished_rod"] = {"code": last.code, "finished_date": d(last.finished_date)} if last else None
+        out["needs_new_rod"] = st["needs_new_rod"]
+    return out
 
 
 def weaver_out(w, db):
     rods_with = db.query(Rod).filter(Rod.weaver_id == w.id, Rod.status == "with_weaver").count()
     return {"id": w.id, "name": w.name, "phone": w.phone, "address": w.address,
             "rate_per_meter": w.rate_per_meter, "opening_balance": w.opening_balance, "active": w.active,
-            "machines": [machine_out(m) for m in w.machines],
+            "machines": [machine_out(m, db) for m in w.machines],
             "balance": calc.weaver_balance(db, w), "rods_with_weaver": rods_with,
             "since_last_payment": calc.weaver_since_last_payment(db, w),
             "extra_thread_kg": calc.thread_with_weaver(db, w.id)}

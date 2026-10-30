@@ -1,5 +1,6 @@
 """All the sums the business used to do by hand, in one place."""
-from sqlalchemy import func
+from datetime import date
+from sqlalchemy import func, or_, and_
 from .models import (Purchase, Rod, ThreadIssue, Lot as _Lot, Lot, WeaverPayment, CuttingEntry, SaleItem, Sale,
                      CustomerPayment, Weaver, Customer)
 from .util import r2, r3, key
@@ -55,6 +56,18 @@ def thread_with_weaver(db, wid=None):
     for kind, kg in q.group_by(ThreadIssue.kind):
         tot += kg if kind == "given" else -kg
     return r3(tot)
+
+
+# ---------- Rod state of one machine ----------
+def machine_rods(db, machine_id):
+    """Rod state of one machine. Rods taken back to stock have no machine, so they don't count."""
+    rods = db.query(Rod).filter(Rod.machine_id == machine_id,
+                                Rod.status.in_(["with_weaver", "finished"])).order_by(Rod.id).all()
+    running = [r for r in rods if r.status == "with_weaver"]
+    finished = [r for r in rods if r.status == "finished"]
+    # picked in Python so NULL ordering is the same on SQLite and PostgreSQL
+    last = max(finished, key=lambda r: (r.finished_date or date.min, r.id)) if finished else None
+    return {"running": running, "last_finished": last, "needs_new_rod": (not running) and last is not None}
 
 
 # ---------- Pieces received from weavers but not yet cut ----------
@@ -159,6 +172,24 @@ def customer_received(db, cid):
 def customer_balance(db, c: Customer):
     """Positive = customer still has to pay us."""
     return r2((c.opening_balance or 0) + customer_billed(db, c.id) - customer_received(db, c.id))
+
+
+def bill_account(db, s: Sale):
+    """Money summary printed on a bill. Same-day bills come before same-day receipts, as in ledger()."""
+    c = s.customer
+    bills_before = db.query(func.coalesce(func.sum(Sale.total), 0)).filter(
+        Sale.customer_id == c.id,
+        or_(Sale.date < s.date, and_(Sale.date == s.date, Sale.id < s.id))).scalar()
+    received_before = db.query(func.coalesce(func.sum(CustomerPayment.amount), 0)).filter(
+        CustomerPayment.customer_id == c.id, CustomerPayment.date < s.date).scalar()
+    received_on_date = db.query(func.coalesce(func.sum(CustomerPayment.amount), 0)).filter(
+        CustomerPayment.customer_id == c.id, CustomerPayment.date == s.date).scalar()
+    previous_balance = r2((c.opening_balance or 0) + bills_before - received_before)
+    bill_amount = r2(s.total)
+    total_due = r2(previous_balance + bill_amount)
+    received_on_date = r2(received_on_date)
+    return {"previous_balance": previous_balance, "bill_amount": bill_amount, "total_due": total_due,
+            "received_on_date": received_on_date, "balance_after": r2(total_due - received_on_date)}
 
 
 def ledger(opening, entries):
