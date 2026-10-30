@@ -37,6 +37,8 @@ function BillForm({ onAddCustomer }) {
   const setItem = (i, k, v) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
   const total = items.reduce((s, it) => s + n(it.quantity) * n(it.rate), 0);
   const pieces = items.reduce((s, it) => s + n(it.quantity), 0);
+  const chosen = new Set(items.map((it) => it.stock).filter(Boolean));
+  const allChosen = ready.length > 0 && ready.every((x) => chosen.has(itemKey(x.product, x.color)));
 
   const save = async () => {
     const lines = items.filter((it) => it.stock && it.quantity !== "").map((it) => {
@@ -64,11 +66,14 @@ function BillForm({ onAddCustomer }) {
       <div className="bill-items">
         {items.map((it, i) => {
           const s = ready.find((x) => itemKey(x.product, x.color) === it.stock);
+          // items already chosen on other lines are not offered again; the line keeps its own choice
+          const takenElsewhere = new Set(items.filter((_, j) => j !== i).map((x) => x.stock).filter(Boolean));
           return (
             <div key={i} className="bill-item">
               <Field label="Product & colour">
                 <Select value={it.stock} onChange={(v) => setItem(i, "stock", v)}
-                  options={ready.map((x) => ({ value: itemKey(x.product, x.color), label: `${x.product} · ${x.color || "—"} (${x.in_stock} ready)` }))} />
+                  options={ready.filter((x) => !takenElsewhere.has(itemKey(x.product, x.color)))
+                    .map((x) => ({ value: itemKey(x.product, x.color), label: `${x.product} · ${x.color || "—"} (${x.in_stock} ready)` }))} />
               </Field>
               <Field label="Pieces" hint={s && n(it.quantity) > s.in_stock ? `⚠ Only ${s.in_stock} ready` : ""}>
                 <NumInput value={it.quantity} onChange={(v) => setItem(i, "quantity", v)} step="1" />
@@ -80,7 +85,8 @@ function BillForm({ onAddCustomer }) {
           );
         })}
       </div>
-      <Btn kind="ghost" onClick={() => setItems((xs) => [...xs, blankItem()])}>+ Add another item</Btn>
+      <Btn kind="ghost" onClick={() => setItems((xs) => [...xs, blankItem()])} disabled={allChosen}>+ Add another item</Btn>
+      {allChosen && <div className="hint">All packed items are already on this bill.</div>}
       <div className="form" style={{ marginTop: 12 }}>
         <Field label="Notes" wide><Input value={f.notes} onChange={(v) => setF((x) => ({ ...x, notes: v }))} placeholder="Optional, e.g. transport details" /></Field>
       </div>
@@ -266,8 +272,10 @@ export function CustomerDetail() {
 export function Invoice({ settings }) {
   const { id } = useParams();
   const { data: s, error } = useData(`/sales/${id}`);
+  const [showItems, setShowItems] = useState(false);
   if (error) return <div className="page"><ErrorBox msg={error} /></div>;
   if (!s) return <div className="page"><Loading /></div>;
+  const a = s.account;
   return (
     <div className="page">
       <div className="no-print doc-actions">
@@ -289,13 +297,30 @@ export function Invoice({ settings }) {
           {s.customer.address && <div><span>Address</span><b>{s.customer.address}</b></div>}
           {s.customer.gstin && <div><span>GSTIN</span><b>{s.customer.gstin}</b></div>}
         </div>
-        <Table rows={s.items.map((x, i) => ({ ...x, no: i + 1 }))} rowKey="no" columns={[
-          { label: "#", key: "no" },
-          { label: "Item", render: (r) => `${r.product} — ${r.color}` },
-          { label: "Pieces", key: "quantity", align: "right" },
-          { label: "Rate", render: (r) => rs(r.rate), align: "right" },
-          { label: "Amount", render: (r) => rs(r.amount), align: "right" },
-        ]} footer={["", "Total", num(s.pieces, 0), "", <b key="t">{rs(s.total)}</b>]} />
+        <div className="doc-totals">
+          <div><span>Pieces</span><b>{num(s.pieces, 0)}</b></div>
+          <div><span>This bill</span><b>{rs(a.bill_amount)}</b></div>
+          <div><span>{a.previous_balance >= 0 ? "Previous balance" : "Advance from before"}</span><b>{rs(Math.abs(a.previous_balance))}</b></div>
+          <div className="big"><span>Total to pay</span><b>{rs(a.total_due)}</b></div>
+          <div><span>Received on {dt(s.date)}</span><b>{rs(a.received_on_date)}</b></div>
+          <div><span>{a.balance_after >= 0 ? "Balance to pay" : "Advance with us"}</span><b>{rs(Math.abs(a.balance_after))}</b></div>
+        </div>
+        {/* On screen only: the item details are kept off the printed bill */}
+        <div className="doc-toggle no-print">
+          <p className="hint">
+            Money received today not showing? Enter it in <Link className="link" to={`/sales?tab=receive&customer=${s.customer_id}`}>Money received</Link> with the bill date, then open this bill again.
+          </p>
+          <Btn kind="ghost" onClick={() => setShowItems((x) => !x)}>{showItems ? "Hide items ▴" : "Show items on this bill ▾"}</Btn>
+          {showItems && (
+            <Table rows={s.items.map((x, i) => ({ ...x, no: i + 1 }))} rowKey="no" columns={[
+              { label: "#", key: "no" },
+              { label: "Item", render: (r) => `${r.product} — ${r.color}` },
+              { label: "Pieces", key: "quantity", align: "right" },
+              { label: "Rate", render: (r) => rs(r.rate), align: "right" },
+              { label: "Amount", render: (r) => rs(r.amount), align: "right" },
+            ]} footer={["", "Total", num(s.pieces, 0), "", <b key="t">{rs(s.total)}</b>]} />
+          )}
+        </div>
         {s.notes && <p>Notes: {s.notes}</p>}
         <div className="signs"><div>Customer signature</div><div>For {settings?.business_name || "the business"}</div></div>
       </div>

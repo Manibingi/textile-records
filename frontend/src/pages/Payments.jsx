@@ -129,6 +129,7 @@ function History() {
 export function PaymentSlip({ settings }) {
   const { id } = useParams();
   const { data, error } = useData(`/weaver-payments/${id}/slip`);
+  const [showLots, setShowLots] = useState(false);
   if (error) return <div className="page"><ErrorBox msg={error} /></div>;
   if (!data) return <div className="page"><Loading /></div>;
   const p = data.payment;
@@ -149,22 +150,29 @@ export function PaymentSlip({ settings }) {
         <div className="doc-meta">
           <div><span>Weaver</span><b>{data.weaver.name}</b></div>
           <div><span>Payment date</span><b>{dt(p.date)}</b></div>
-          <div><span>Work period</span><b>{data.period_from ? `After ${dt(data.period_from)}` : "From start"} to {dt(data.period_to)}</b></div>
-          <div><span>Rate</span><b>{rs(data.weaver.rate_per_meter)} / meter</b></div>
         </div>
-        <Table rows={data.lots} rowKey="code" empty="No new lots in this period." columns={[
-          { label: "Lot", key: "code" },
-          { label: "Date", render: (r) => dt(r.date) },
-          { label: "Machine", render: (r) => r.machine && `M${r.machine}` },
-          { label: "Product", render: (r) => `${r.product} ${r.color}` },
-          { label: "Pieces", key: "pieces", align: "right" },
-          { label: "Meters", render: (r) => num(r.meters), align: "right" },
-          { label: "Amount", render: (r) => rs(r.amount), align: "right" },
-        ]} footer={["Total", "", "", "", "", num(data.total_meters), rs(data.total_amount)]} />
         <div className="doc-totals">
           <div><span>Total amount due before this payment</span><b>{rs(data.due_before)}</b></div>
           <div className="big"><span>Paid now ({p.mode})</span><b>{rs(p.amount)}</b></div>
           <div><span>{data.balance_after >= 0 ? "Balance still to pay" : "Advance given"}</span><b>{rs(Math.abs(data.balance_after))}</b></div>
+        </div>
+        {/* On screen only: the lot details are kept off the printed slip */}
+        <div className="doc-toggle no-print">
+          <Btn kind="ghost" onClick={() => setShowLots((x) => !x)}>{showLots ? "Hide lots ▴" : "Show lots in this period ▾"}</Btn>
+          {showLots && (
+            <>
+              <h3>{data.period_from ? `Lots after ${dt(data.period_from)}` : "Lots from start"} to {dt(data.period_to)}</h3>
+              <Table rows={data.lots} rowKey="code" empty="No new lots in this period." columns={[
+                { label: "Lot", key: "code" },
+                { label: "Date", render: (r) => dt(r.date) },
+                { label: "Machine", render: (r) => r.machine && `M${r.machine}` },
+                { label: "Product", render: (r) => `${r.product} ${r.color}` },
+                { label: "Pieces", key: "pieces", align: "right" },
+                { label: "Meters", render: (r) => num(r.meters), align: "right" },
+                { label: "Amount", render: (r) => rs(r.amount), align: "right" },
+              ]} footer={["Total", "", "", "", "", num(data.total_meters), rs(data.total_amount)]} />
+            </>
+          )}
         </div>
         {p.notes && <p>Notes: {p.notes}</p>}
         <div className="signs"><div>Received by (weaver)</div><div>Paid by</div></div>

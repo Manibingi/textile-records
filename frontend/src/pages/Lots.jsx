@@ -27,7 +27,7 @@ const blank = (keep = {}) => ({
 });
 
 function ReceiveForm() {
-  const { data: weavers } = useData("/weavers");
+  const { data: weavers, reload: reloadWeavers } = useData("/weavers");
   const [f, setF] = useState(blank());
   const [lines, setLines] = useState([blankLine()]);
   const [rodIds, setRodIds] = useState([]);
@@ -40,6 +40,9 @@ function ReceiveForm() {
 
   const weaver = (weavers || []).find((w) => String(w.id) === String(f.weaver_id));
   const machines = weaver?.machines || [];
+  const machine = machines.find((x) => String(x.id) === String(f.machine_id));
+  // A machine whose last rod is finished and that has no running rod: the server refuses lots on it.
+  const needsRod = machine?.needs_new_rod ? machine : null;
 
   // When a machine is chosen, tick its rods and fill colour/design from them.
   useEffect(() => {
@@ -74,6 +77,7 @@ function ReceiveForm() {
       setF(blank(f));
       setLines([blankLine()]);
       reloadRods();
+      reloadWeavers();
       window.scrollTo(0, 0);
     }
   };
@@ -99,9 +103,24 @@ function ReceiveForm() {
           </Field>
           <Field label="Machine">
             <Select value={f.machine_id} onChange={set("machine_id")} placeholder="— Choose machine —"
-              options={machines.map((m) => ({ value: m.id, label: `Machine ${m.number}${m.current_color ? ` · ${m.current_color} ${m.current_design}` : ""}` }))} />
+              options={machines.map((m) => ({ value: m.id, label: m.needs_new_rod
+                ? `Machine ${m.number} · needs a new rod (${m.last_finished_rod.code} finished)`
+                : `Machine ${m.number}${m.current_color ? ` · ${m.current_color} ${m.current_design}` : ""}` }))} />
           </Field>
         </div>
+        {needsRod && (
+          <div className="notice red" role="alert">
+            <div className="warn-text">
+              Rod {needsRod.last_finished_rod.code} on Machine {needsRod.number} was marked finished
+              {needsRod.last_finished_rod.finished_date ? ` on ${dt(needsRod.last_finished_rod.finished_date)}` : ""}.
+              {" "}Give a new rod to this machine first, or use "Undo finish" on {needsRod.last_finished_rod.code} if this cloth is from that rod.
+            </div>
+            <div className="notice-actions">
+              <Link className="btn ghost" to="/rods?tab=issue">Give a rod →</Link>
+              <Link className="btn ghost" to="/rods?tab=list&status=finished">All rods →</Link>
+            </div>
+          </div>
+        )}
 
         <div className="field-label">Product</div>
         <Choice value={f.product} onChange={set("product")} options={PRODUCTS} />
@@ -167,7 +186,7 @@ function ReceiveForm() {
         <CalcBox label={filled.length ? `Total for ${filled.length} lot${filled.length === 1 ? "" : "s"} · weaver earns` : "Weaver earns"} tone="green"
           formula={`${num(totPieces, 0)} pieces · ${num(totMeters)} m × ${rs(rate)} per meter · weight ${kg(f.weight_kg)}`}
           result={rs(lines.reduce((t, l) => t + Math.round(n(l.meters) * rate * 100 + 1e-6) / 100, 0))} />
-        <div className="form-actions"><Btn big onClick={save} disabled={busy}>✓ Save {filled.length > 1 ? `${filled.length} lots` : "lot"}</Btn></div>
+        <div className="form-actions"><Btn big onClick={save} disabled={busy || Boolean(needsRod)}>✓ Save {filled.length > 1 ? `${filled.length} lots` : "lot"}</Btn></div>
       </Card>
     </>
   );
@@ -194,13 +213,25 @@ function LotList() {
     { label: "Pieces", key: "pieces", align: "right" },
     { label: "Meters", key: "meters", render: (r) => num(r.meters), align: "right" },
     { label: "Amount", key: "amount", render: (r) => rs(r.amount), align: "right" },
-    { label: "Weight kg", render: (r) => (r.first_in_batch ? weightText(r) : <span className="muted small">↑ weighed with above</span>), align: "right",
+    { label: "Weight kg", render: (r) => (!r.first_in_batch ? <span className="muted small">Weighed with {r.first_lot_code}</span>
+      : r.batch_lot_count > 1 ? (
+        <div>
+          <div>{weightText(r)}</div>
+          <div className="muted small">All {r.batch_lot_count} lots: {num(r.batch_pieces, 0)} pieces · {num(r.batch_meters)} m</div>
+        </div>
+      ) : weightText(r)), align: "right",
       csv: (r) => (r.first_in_batch ? r.weight_kg : "") },
     { label: "", noExport: true, render: (r) => <Btn kind="danger-ghost" onClick={() => del(r)}>Delete</Btn> },
   ];
+  // CSV only: receipt totals right after "Weight kg", filled on the first lot of each receipt
+  const weightAt = cols.findIndex((c) => c.label === "Weight kg") + 1;
+  const csvCols = [...cols.slice(0, weightAt),
+    { label: "Receipt pieces", csv: (r) => (r.first_in_batch ? r.batch_pieces : "") },
+    { label: "Receipt meters", csv: (r) => (r.first_in_batch ? r.batch_meters : "") },
+    ...cols.slice(weightAt)];
   const t = (data || []).reduce((a, r) => ({ p: a.p + r.pieces, k: a.k + (r.first_in_batch ? r.weight_kg : 0), m: a.m + r.meters, amt: a.amt + r.amount }), { p: 0, k: 0, m: 0, amt: 0 });
   return (
-    <Card title="Lot list" actions={<ExportBar rows={data} columns={cols} filename="lots" />}>
+    <Card title="Lot list" actions={<ExportBar rows={data} columns={csvCols} filename="lots" />}>
       <DateRange value={range} onChange={setRange} />
       <div className="filter-row">
         <Select value={weaverId} onChange={setWeaverId} placeholder="All weavers" options={(weavers || []).map((w) => ({ value: w.id, label: w.name }))} />
