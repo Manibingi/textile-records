@@ -9,7 +9,7 @@ Priority order: dependencies first, then value ÷ effort (S = 1, M = 2, L = 3), 
 
 | ID | Feature | Status | Priority | Value | Effort | Data risk | Depends on | Spec |
 |---|---|---|---|---|---|---|---|---|
-| F-019 | Owner requests (Oct 2026): no new rod on a machine whose rod isn't finished; no lots on a machine whose rod is finished until a new rod is given; receipt pieces/meters next to the combined weight in the Lot list; printed weaver slip and bill show only the money summary; New bill hides items already chosen on other lines | specced | 1 | 5 | M | low | — | [F-019](features/F-019-owner-requests-oct-2026.md) |
+| F-019 | Owner requests (Oct 2026): no new rod on a machine whose rod isn't finished; no lots on a machine whose rod is finished until a new rod is given; receipt pieces/meters next to the combined weight in the Lot list; printed weaver slip and bill show only the money summary; New bill hides items already chosen on other lines | in-progress | 1 | 5 | M | low | — | [F-019](features/F-019-owner-requests-oct-2026.md) |
 | F-002 | Off-site automatic backup of the live site: a nightly, password-locked copy saved on GitHub for 90 days, plus "last safety copy" status in Settings and a Home warning when it stops | specced | 2 | 5 | S | low | — | [F-002](features/F-002-offsite-backup.md) |
 | F-001 | Automatic checks on every pull request (GitHub Actions: pytest + frontend build + stale-`dist` check) | proposed | 3 | 4 | S | low | — | — |
 | F-009 | Shop computer backup safety: a second backup folder (e.g. a Google Drive for desktop or pen-drive folder) set in `.env`, and a Home reminder when no backup was downloaded for 7 days | proposed | 4 | 4 | S | low | F-002 | — |
