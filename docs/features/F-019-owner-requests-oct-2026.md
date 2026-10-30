@@ -284,41 +284,41 @@ Add these to `backend/tests/test_flow.py`. Each test creates its own weaver, bec
 ## Acceptance criteria
 
 **Item 1: one rod per machine**
-- [ ] `POST /rods/issue` with a machine that has a `with_weaver` rod returns 400 with the exact R1 sentence (singular or plural), and no rod changes status.
-- [ ] Several rods in one give to an empty machine still succeed. Rods given without a machine are never refused by R1.
-- [ ] Finishing (the button or the lot-receipt tick) or returning to stock frees the machine.
-- [ ] `POST /rods/{id}/reopen` is refused with the exact R1b sentence when another rod is running on the same machine, and works otherwise.
-- [ ] The Give rods screen shows busy machines disabled with the `busy: rod … not finished` label, and refreshes after a give.
+- [x] `POST /rods/issue` with a machine that has a `with_weaver` rod returns 400 with the exact R1 sentence (singular or plural), and no rod changes status.
+- [x] Several rods in one give to an empty machine still succeed. Rods given without a machine are never refused by R1.
+- [x] Finishing (the button or the lot-receipt tick) or returning to stock frees the machine.
+- [x] `POST /rods/{id}/reopen` is refused with the exact R1b sentence when another rod is running on the same machine, and works otherwise.
+- [x] The Give rods screen shows busy machines disabled with the `busy: rod … not finished` label, and refreshes after a give.
 
 **Item 2: no lots after a finished rod**
-- [ ] `POST /lots` to a machine with a finished rod and no running rod returns 400 with the exact R2 sentence, and saves nothing.
-- [ ] Machines that never had a rod, machines with a running rod, and receipts with no machine are not refused.
-- [ ] A receipt that finishes the running rod in the same save is accepted. The next one is refused until a new rod is given or the finish is undone.
-- [ ] Machines in `/weavers` carry `running_rods`, `last_finished_rod` and `needs_new_rod`, computed by `calc.machine_rods`.
-- [ ] The Receive lots screen shows the red notice and disables Save for such a machine, and refreshes machine state after saving.
+- [x] `POST /lots` to a machine with a finished rod and no running rod returns 400 with the exact R2 sentence, and saves nothing.
+- [x] Machines that never had a rod, machines with a running rod, and receipts with no machine are not refused.
+- [x] A receipt that finishes the running rod in the same save is accepted. The next one is refused until a new rod is given or the finish is undone.
+- [x] Machines in `/weavers` carry `running_rods`, `last_finished_rod` and `needs_new_rod`, computed by `calc.machine_rods`.
+- [x] The Receive lots screen shows the red notice and disables Save for such a machine, and refreshes machine state after saving.
 
 **Item 3: receipt totals in the Lot list**
-- [ ] Every lot from `/lots` has `batch_pieces`, `batch_meters` and `first_lot_code`, correct for multi-lot receipts, single-lot receipts and old lots without a batch.
-- [ ] The first row of a multi-lot receipt shows `All N lots: P pieces · M m`. The other rows show `Weighed with L-xxxx`.
-- [ ] Per-lot Pieces, Meters, Amount and the footer totals are unchanged. CSV gains `Receipt pieces` and `Receipt meters` only.
+- [x] Every lot from `/lots` has `batch_pieces`, `batch_meters` and `first_lot_code`, correct for multi-lot receipts, single-lot receipts and old lots without a batch.
+- [x] The first row of a multi-lot receipt shows `All N lots: P pieces · M m`. The other rows show `Weighed with L-xxxx`.
+- [x] Per-lot Pieces, Meters, Amount and the footer totals are unchanged. CSV gains `Receipt pieces` and `Receipt meters` only.
 
 **Item 4: short slip and bill**
-- [ ] The printed weaver slip has the header, weaver, payment date, due before, paid now (mode), balance or advance, notes and signatures, and **no** lot table, work period or rate.
-- [ ] The slip's lot table is available on screen behind a closed-by-default `no-print` toggle.
-- [ ] `GET /sales/{id}` returns `account` with the five figures from the formulas, r2-rounded. The bill list does not.
-- [ ] The printed bill has the header, customer details, Pieces, This bill, Previous balance (or Advance from before), Total to pay, Received on <date>, Balance to pay (or Advance with us), notes and signatures, and **no** item table.
-- [ ] The bill's item table is available on screen behind a closed-by-default `no-print` toggle. The "Money received" hint links to the receive tab with the customer chosen.
-- [ ] `GET /weaver-payments/{id}/slip` is unchanged, and the existing slip test passes.
+- [x] The printed weaver slip has the header, weaver, payment date, due before, paid now (mode), balance or advance, notes and signatures, and **no** lot table, work period or rate.
+- [x] The slip's lot table is available on screen behind a closed-by-default `no-print` toggle.
+- [x] `GET /sales/{id}` returns `account` with the five figures from the formulas, r2-rounded. The bill list does not.
+- [x] The printed bill has the header, customer details, Pieces, This bill, Previous balance (or Advance from before), Total to pay, Received on <date>, Balance to pay (or Advance with us), notes and signatures, and **no** item table.
+- [x] The bill's item table is available on screen behind a closed-by-default `no-print` toggle. The "Money received" hint links to the receive tab with the customer chosen.
+- [x] `GET /weaver-payments/{id}/slip` is unchanged, and the existing slip test passes.
 
 **Item 5: no repeated bill items**
-- [ ] A product and colour chosen on one line is not offered on the other lines. A line keeps its own choice. Removing or changing a line frees the item.
-- [ ] "+ Add another item" is disabled with `All packed items are already on this bill.` when every ready item is used.
-- [ ] `POST /sales` is unchanged.
+- [x] A product and colour chosen on one line is not offered on the other lines. A line keeps its own choice. Removing or changing a line frees the item.
+- [x] "+ Add another item" is disabled with `All packed items are already on this bill.` when every ready item is used.
+- [x] `POST /sales` is unchanged.
 
 **General**
-- [ ] No schema change. All existing tests pass unchanged except the listed additive assertions.
-- [ ] The new pytest cases above pass. `npm run build` is clean and `frontend/dist` is committed.
-- [ ] `docs/design-document.md` is updated as listed below.
+- [x] No schema change. All existing tests pass unchanged except the listed additive assertions.
+- [x] The new pytest cases above pass. `npm run build` is clean and `frontend/dist` is committed.
+- [x] `docs/design-document.md` is updated as listed below.
 
 ## Out of scope
 
@@ -340,3 +340,13 @@ Add these to `backend/tests/test_flow.py`. Each test creates its own weaver, bec
 - **API design → Conventions:** note that `GET /lots` items carry receipt totals (`batch_pieces`, `batch_meters`, `first_lot_code`), `/weavers` machines carry the rod state, and `GET /sales/{id}` carries `account`.
 - **UI and UX design → Screens / Devices and output:** the payment slip and bill print only the money summary. Lot and item details are on screen behind a toggle. New bill hides items already chosen on other lines.
 - **Implementation notes (as built):** add an F-019 entry summarising the five changes.
+
+## Developer notes
+
+- **Red notice style.** The spec asks for "the existing `.notice` class plus `warn-text`" in a red tone, but both are amber today. A small modifier `.notice.red` (red-soft background, red text for `warn-text` inside it) and `.notice-actions` (the two link buttons, stacked below 900 px) were added to `styles.css`. Existing amber notices are unchanged.
+- **Give rods: machine cleared after a give.** After a successful give the Machine select is reset to empty, because the machine just used is now busy and shown disabled. Weaver and date still carry over.
+- **Lot list CSV.** `Table` has no hidden-column support, so the two CSV-only columns (`Receipt pieces`, `Receipt meters`) are added to a separate column list passed to `ExportBar`, inserted right after "Weight kg". `ui.jsx` is unchanged.
+- **`account` only on GET.** `sale_out(s, full=True, db=db)` adds `account` only when `db` is passed, which is `GET /sales/{id}`. `POST /sales` keeps its old response shape; the screen opens the bill through GET anyway.
+- **R2 notice date.** If `last_finished_rod.finished_date` is null, the screen notice drops the " on DD-MM-YYYY" part, matching the server wording rule.
+- **Bill hint placement.** The `no-print` "Money received today not showing?" hint sits directly under the totals, above the "Show items on this bill" toggle.
+- **Manual browser smoke.** Not run (no browser in the build environment). The API was smoke-tested on a temporary SQLite database through uvicorn, and the UI builds cleanly. The reviewer should do the 1366 px and 390 px checks listed under Tests.

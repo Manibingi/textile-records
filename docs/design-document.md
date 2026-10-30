@@ -98,6 +98,12 @@ Every figure the business used to work out by hand is computed on the server (`c
 - **Pieces waiting to cut** for each product and colour = pieces in all lots received − (good + rejected) in all cutting entries from weaving. Cutting is recorded by colour, not by lot, because lots of one colour are cut together.
 - **Ready stock** for each product and colour = good pieces packed (including opening stock) − pieces sold.
 - **Customer balance** = opening balance + all bills − all money received.
+- **Bill money summary** (printed on each bill, `calc.bill_account`). Same-day bills come before same-day receipts, as in the running account:
+  - previous balance = opening + bills before this one (earlier date, or same date and lower id) − money received before the bill date
+  - total to pay = previous balance + this bill
+  - received on the bill date = all money received from the customer on that date
+  - balance after = total to pay − received on the bill date. With two bills on one day, both show all of that day's money; the second bill's balance is the true end-of-day balance.
+- **Rod state of a machine** (`calc.machine_rods`): running rods = rods on the machine that are with the weaver; the machine needs a new rod when it has no running rod and at least one finished rod. Rods taken back to stock have no machine and don't count.
 - **Rough profit** for a period = sales − thread purchases − weaving cost. It leaves out electricity, wages, transport and packing.
 
 ### Rules the app enforces
@@ -110,6 +116,9 @@ Every figure the business used to work out by hand is computed on the server (`c
 | Cutting more pieces than are waiting | Saved, with a warning |
 | Bill for more pieces than are packed | Refused, showing what is available |
 | Deleting a record others depend on (a cut lot, a weaver with lots, a sold cutting entry) | Refused, naming what to delete first |
+| Giving a rod to a machine that still has a rod not finished | Refused, naming the rod (several rods in one give to a free machine are allowed) |
+| Undo finish while the machine has another running rod | Refused |
+| Receiving lots on a machine whose last rod is finished and that has no running rod | Refused (machines never given a rod, and receipts without a machine, are not checked) |
 | Money amounts | Rounded half up to 2 decimals, the same on screen and in the database |
 
 ## API design
@@ -130,6 +139,9 @@ A JSON REST API under `/api`, split into four routers; every list endpoint takes
 - A save that succeeds but needs attention returns the record plus a `warning` field.
 - `POST /lots` takes one receipt: shared weaver, machine, product, colour and combined weight, plus a list of `{pieces, meters}` lines; it creates one batch and one lot per line.
 - Codes (R-0001, L-0001, INV-0001) are assigned by the server from the row id.
+- `GET /lots` items carry receipt totals: `batch_pieces`, `batch_meters` and `first_lot_code` (the pieces and meters of the whole receipt the lot was weighed with, and its first lot).
+- `/weavers` machines carry their rod state: `running_rods` (codes), `last_finished_rod` (`{code, finished_date}` or null) and `needs_new_rod`.
+- `GET /sales/{id}` carries `account`: `previous_balance`, `bill_amount`, `total_due`, `received_on_date`, `balance_after`. The bill list does not.
 
 ## UI and UX design
 
@@ -161,6 +173,10 @@ The interface is built for someone who has never used business software: the hom
 
 **Devices and output.** Below 900 px wide the sidebar becomes a slide-in menu and tables turn into stacked cards, so the app works on a phone over shop Wi-Fi. Every list exports to CSV for Excel and prints cleanly to PDF; bills and payment slips have their own print layouts with signature lines.
 
+**Short slip and bill.** The printed weaver payment slip shows only the weaver, payment date, amount due before, paid now and balance (or advance). The printed bill shows the customer, total pieces, this bill, previous balance, total to pay, money received on the bill date and balance to pay. The lot and item tables are on screen only, behind a closed-by-default toggle that never prints.
+
+**Screen rules from F-019.** Give rods shows machines that still have a rod not finished as disabled ("busy: rod R-0004 not finished"). Receive lots shows a red notice and disables Save for a machine that needs a new rod. The Lot list shows "All N lots: P pieces · M m" under the combined weight and "Weighed with L-xxxx" on the other lots of a receipt; its CSV adds "Receipt pieces" and "Receipt meters". New bill hides items already chosen on other lines.
+
 ## Data safety
 
 All records live in one file, `backend/data/textile.db`, protected by daily automatic copies and a one-click download.
@@ -179,6 +195,7 @@ Five automated tests (`backend/tests/test_flow.py`, run with pytest) cover the w
 - **Comb validation:** plastic heavier than total, zero combs, missing weight.
 - **Many lots, one weight, cutting by colour:** totals, per-lot pay, pieces waiting, over-cut warning.
 - **Upgrade:** builds a database in the first version's format and checks it opens with data intact.
+- **F-019:** one running rod per machine (and the Undo finish guard), no lots after a finished rod, receipt totals on lots, and the bill money summary.
 
 Browser checks with Playwright fill the main forms, compare on-screen calculations with saved values, and fail on any console error, at desktop (1366 px) and phone (390 px) widths.
 
@@ -211,4 +228,5 @@ Differences between the original design above and the code in `main`. Agents kee
 | Backups | `.db` copy | `.db` online-backup copy on SQLite; `.json` export of every table on Postgres. On Render, files on local disk do not survive restarts |
 | Built UI | Served from `frontend/dist` | `frontend/dist` is **committed**; rebuild and commit it after every UI change |
 | Config | — | `backend/.env` (see `.env.example`): `DATABASE_URL`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `TEXTILE_DATA_DIR`, `TEXTILE_UI_DIR`, `APP_USERNAME`, `APP_PASSWORD`, `CORS_ORIGINS` |
-| Browser tests | Playwright at 1366 / 390 px | Not present yet; backend has the five pytest tests |
+| Browser tests | Playwright at 1366 / 390 px | Not present yet; backend has the pytest tests in `tests/test_flow.py` (nine after F-019) |
+| F-019 owner requests (Oct 2026) | — | (1) `POST /rods/issue` refuses a machine that has a running rod; `POST /rods/{id}/reopen` refuses when another rod runs on that machine. (2) `POST /lots` refuses a machine whose last rod is finished and that has no running rod; machines never given a rod and receipts without a machine are not checked. Both use `calc.machine_rods`, which also feeds the machine fields in `/weavers`. (3) Lots carry receipt totals and the Lot list shows them next to the combined weight. (4) The printed slip and bill show only the money summary (`calc.bill_account` for bills); details are on-screen toggles. (5) New bill hides items chosen on other lines (UI only; the server still accepts and adds up repeated lines) |

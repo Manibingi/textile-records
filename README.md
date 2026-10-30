@@ -21,12 +21,12 @@ Built with **FastAPI + SQLite** (backend) and **React** (screens). Everything ru
 |---|--------|----------------|--------------------|
 | 1 | Thread & suppliers | Each thread purchase (or opening stock) | Thread stock by type & colour |
 | 2 | Rods → Wind new rod | Total weight, steel rod weight, thread length (549 m default) | **Net thread = total − rod**; stock reduced; rod number R-0001… |
-| 3 | Rods → Give rods to weaver | Weaver, machine, rods | Machine's current colour/design; rods with each weaver |
+| 3 | Rods → Give rods to weaver | Weaver, machine, rods | Machine's current colour/design; rods with each weaver. A machine whose rod is not finished yet can't get a new rod |
 | 4 | Rods → Give extra thread | Weaver, thread, number of combs, total weight, weight of 1 empty comb (or "taken back") | **Net thread = total − combs × comb weight**; stock reduced; extra thread each weaver is holding |
-| 5 | Lots received | One combined weight for all lots from a machine, then pieces & meters of each lot | Weaver's earnings per lot (meters × rate); lot numbers L-0001… |
-| 6 | Weaver payments | Amount paid | Amount due, meters since last payment, printable slip |
+| 5 | Lots received | One combined weight for all lots from a machine, then pieces & meters of each lot | Weaver's earnings per lot (meters × rate); lot numbers L-0001…. Not allowed on a machine whose rod is finished until it gets a new rod (or "Undo finish") |
+| 6 | Weaver payments | Amount paid | Amount due, meters since last payment, printable slip (due before, paid now, balance) |
 | 7 | Cutting & stock | Tap a colour (pieces waiting from all lots), then good pieces, rejects, bundles | Pieces still to cut per colour; ready-to-sell stock; wastage % |
-| 8 | Sales & customers | Bill items, money received | Stock reduced; bill printout; amount each customer owes |
+| 8 | Sales & customers | Bill items, money received | Stock reduced; bill printout with previous balance, money received that day and balance to pay; amount each customer owes |
 
 **Reports:** summary (with rough profit), weaver-wise, machine-wise, supplier-wise, sales, wastage — for any dates. Every list has **Excel (CSV)** and **Print / PDF** buttons.
 
