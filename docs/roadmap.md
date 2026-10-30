@@ -9,24 +9,31 @@ Priority order: dependencies first, then value ÷ effort (S = 1, M = 2, L = 3), 
 
 | ID | Feature | Status | Priority | Value | Effort | Data risk | Depends on | Spec |
 |---|---|---|---|---|---|---|---|---|
-| F-002 | Off-site automatic backup of the live site: a nightly, password-locked copy saved on GitHub for 90 days, plus "last safety copy" status in Settings and a Home warning when it stops | specced | 1 | 5 | S | low | — | [F-002](features/F-002-offsite-backup.md) |
-| F-001 | Automatic checks on every pull request (GitHub Actions: pytest + frontend build + stale-`dist` check) | proposed | 2 | 4 | S | low | — | — |
-| F-009 | Shop computer backup safety: a second backup folder (e.g. a Google Drive for desktop or pen-drive folder) set in `.env`, and a Home reminder when no backup was downloaded for 7 days | proposed | 3 | 4 | S | low | F-002 | — |
-| F-004 | Customer dues by age (0–30, 31–60, 61–90, 90+ days, payments set against the oldest bills first) and a WhatsApp reminder link with the amount filled in | proposed | 4 | 4 | S | low | — | — |
-| F-010 | "Possible double entry" warnings: same weaver or customer, same date and same amount; same supplier bill number; same receipt meters on the same day. Saves, then warns | proposed | 5 | 3 | S | low | — | — |
-| F-011 | Send a bill or a weaver payment slip on WhatsApp (click-to-chat link with a short text summary; works from the phone) | proposed | 6 | 3 | S | low | — | — |
-| F-017 | Day book: every entry made on one date across all registers, in one printable list, to check against the paper notes at closing time | proposed | 7 | 3 | S | low | — | — |
-| F-012 | Change history: every delete (and, later, every edit) keeps a copy of the old record with date and time, viewable under Reports | proposed | 8 | 4 | M | low | — | — |
-| F-003 | Edit forms for single-row entries: thread purchases, extra thread, weaver payments, money received and cutting entries (instead of delete and re-enter). Lots and bills are split out into F-013 and F-014 | proposed | 9 | 5 | M | med | F-001, F-012 | — |
-| F-016 | Thread given vs cloth received, per weaver: net rod thread + extra thread given against lot weights received for a date range, with the difference in kg and % | proposed | 10 | 4 | M | low | — | — |
-| F-013 | Edit a lot receipt (pieces, meters, colour, date) keeping the frozen rate; refused once its pieces are cut | proposed | 11 | 4 | M | med | F-003 | — |
-| F-014 | Edit a bill (items, rates, date) with the stock check excluding the bill's own pieces; invoice number unchanged | proposed | 12 | 4 | M | med | F-003 | — |
-| F-015 | Restore a backup file (.json or .db) into an empty database from Settings; also the way to move the shop's records online or back | proposed | 13 | 4 | M | med | F-002 | — |
-| F-008 | Friendlier login: a big PIN screen instead of the browser's username/password box | proposed | 14 | 2 | S | low | — | — |
-| F-018 | Browser smoke tests (Playwright at 1366 px and 390 px) run in CI: open each screen, save one entry, compare CalcBox with the saved value | proposed | 15 | 3 | M | low | F-001 | — |
-| F-005 | Expenses register (so profit includes other costs). **Crosses the "no full accounting" non-goal**; keep it to a simple list of expenses by heading | proposed | 16 | 3 | M | low | — | — |
-| F-006 | GST rates and tax lines on bills. **Needs the owner's decision first** (is the business GST-registered and must bills be tax invoices?) | proposed | 17 | 3 | M | med | — | — |
-| F-007 | Malayalam / English language switch | proposed | 18 | 4 | L | low | — | — |
+| F-019 | Owner requests (Oct 2026): no new rod on a machine whose rod isn't finished; no lots on a machine whose rod is finished until a new rod is given; receipt pieces/meters next to the combined weight in the Lot list; printed weaver slip and bill show only the money summary; New bill hides items already chosen on other lines | specced | 1 | 5 | M | low | — | [F-019](features/F-019-owner-requests-oct-2026.md) |
+| F-002 | Off-site automatic backup of the live site: a nightly, password-locked copy saved on GitHub for 90 days, plus "last safety copy" status in Settings and a Home warning when it stops | specced | 2 | 5 | S | low | — | [F-002](features/F-002-offsite-backup.md) |
+| F-001 | Automatic checks on every pull request (GitHub Actions: pytest + frontend build + stale-`dist` check) | proposed | 3 | 4 | S | low | — | — |
+| F-009 | Shop computer backup safety: a second backup folder (e.g. a Google Drive for desktop or pen-drive folder) set in `.env`, and a Home reminder when no backup was downloaded for 7 days | proposed | 4 | 4 | S | low | F-002 | — |
+| F-004 | Customer dues by age (0–30, 31–60, 61–90, 90+ days, payments set against the oldest bills first) and a WhatsApp reminder link with the amount filled in | proposed | 5 | 4 | S | low | — | — |
+| F-010 | "Possible double entry" warnings: same weaver or customer, same date and same amount; same supplier bill number; same receipt meters on the same day. Saves, then warns | proposed | 6 | 3 | S | low | — | — |
+| F-011 | Send a bill or a weaver payment slip on WhatsApp (click-to-chat link with a short text summary; works from the phone) | proposed | 7 | 3 | S | low | — | — |
+| F-017 | Day book: every entry made on one date across all registers, in one printable list, to check against the paper notes at closing time | proposed | 8 | 3 | S | low | — | — |
+| F-012 | Change history: every delete (and, later, every edit) keeps a copy of the old record with date and time, viewable under Reports | proposed | 9 | 4 | M | low | — | — |
+| F-003 | Edit forms for single-row entries: thread purchases, extra thread, weaver payments, money received and cutting entries (instead of delete and re-enter). Lots and bills are split out into F-013 and F-014 | proposed | 10 | 5 | M | med | F-001, F-012 | — |
+| F-016 | Thread given vs cloth received, per weaver: net rod thread + extra thread given against lot weights received for a date range, with the difference in kg and % | proposed | 11 | 4 | M | low | — | — |
+| F-013 | Edit a lot receipt (pieces, meters, colour, date) keeping the frozen rate; refused once its pieces are cut | proposed | 12 | 4 | M | med | F-003 | — |
+| F-014 | Edit a bill (items, rates, date) with the stock check excluding the bill's own pieces; invoice number unchanged | proposed | 13 | 4 | M | med | F-003 | — |
+| F-015 | Restore a backup file (.json or .db) into an empty database from Settings; also the way to move the shop's records online or back | proposed | 14 | 4 | M | med | F-002 | — |
+| F-008 | Friendlier login: a big PIN screen instead of the browser's username/password box | proposed | 15 | 2 | S | low | — | — |
+| F-018 | Browser smoke tests (Playwright at 1366 px and 390 px) run in CI: open each screen, save one entry, compare CalcBox with the saved value | proposed | 16 | 3 | M | low | F-001 | — |
+| F-005 | Expenses register (so profit includes other costs). **Crosses the "no full accounting" non-goal**; keep it to a simple list of expenses by heading | proposed | 17 | 3 | M | low | — | — |
+| F-006 | GST rates and tax lines on bills. **Needs the owner's decision first** (is the business GST-registered and must bills be tax invoices?) | proposed | 18 | 3 | M | med | — | — |
+| F-007 | Malayalam / English language switch | proposed | 19 | 4 | L | low | — | — |
+
+## Notes from the 30-10-2026 owner request
+
+- **F-019 added at priority 1** because the owner asked for it directly. He also asked that nothing else change. F-002 and every item after it moved down one place, with their order unchanged.
+- The Lot list bug (item 3) is in the display, not the data. Each lot keeps its own pieces and meters, but the first row of a multi-lot receipt shows the *combined* weight ("2 lots together") next to *that one lot's* pieces and meters, and nowhere shows the receipt totals. F-019 adds them.
+- F-011 (WhatsApp slip or bill) should reuse F-019's shorter slip and bill summary once F-019 is done.
 
 ## Notes from the 14-10-2026 refresh
 
