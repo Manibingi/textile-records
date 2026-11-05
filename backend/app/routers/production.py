@@ -12,6 +12,10 @@ from .. import calc
 router = APIRouter(prefix="/api")
 
 
+def dmy(x):
+    return x.strftime("%d-%m-%Y")
+
+
 # ---------------- Purchases ----------------
 class PurchaseIn(In):
     date: date
@@ -146,6 +150,14 @@ def issue_rods(body: IssueIn, db=Depends(get_db)):
         m = get_or_404(db, Machine, body.machine_id, "Machine")
         if m.weaver_id != w.id:
             fail("That machine does not belong to this weaver.")
+        running = calc.machine_rods(db, m.id)["running"]
+        if running:
+            codes = ", ".join(r.code for r in running)
+            if len(running) == 1:
+                fail(f"Machine {m.number} of {w.name} already has rod {codes} that is not finished. "
+                     f"Mark it finished (or take it back to stock) before giving a new rod.")
+            fail(f"Machine {m.number} of {w.name} already has rods {codes} that are not finished. "
+                 f"Mark them finished (or take them back to stock) before giving a new rod.")
     rods = []
     for rid in body.rod_ids:
         r = get_or_404(db, Rod, rid, "Rod")
@@ -187,6 +199,16 @@ def reopen_rod(rid: int, db=Depends(get_db)):
     r = get_or_404(db, Rod, rid, "Rod")
     if r.status != "finished":
         fail("Rod is not finished.")
+    if r.machine_id:
+        others = [x for x in calc.machine_rods(db, r.machine_id)["running"] if x.id != r.id]
+        if others:
+            codes = ", ".join(x.code for x in others)
+            name = r.weaver.name if r.weaver else "this weaver"
+            if len(others) == 1:
+                fail(f"Machine {r.machine.number} of {name} already has rod {codes} running. "
+                     f"Finish that rod (or take it back to stock) before undoing the finish of {r.code}.")
+            fail(f"Machine {r.machine.number} of {name} already has rods {codes} running. "
+                 f"Finish those rods (or take them back to stock) before undoing the finish of {r.code}.")
     r.status, r.finished_date = "with_weaver", None
     db.commit()
     return rod_out(r)
@@ -291,7 +313,11 @@ def lot_out(l):
             "batch_id": b.id if b else None, "batch_code": b.code if b else None,
             "batch_lot_count": len(b.lots) if b else 1,
             # weight: combined for the whole receipt (older single-lot entries keep their own weight)
-            "weight_kg": r3(b.weight_kg if b else l.weight_kg), "first_in_batch": (not b) or b.lots[0].id == l.id}
+            "weight_kg": r3(b.weight_kg if b else l.weight_kg), "first_in_batch": (not b) or b.lots[0].id == l.id,
+            # pieces and meters of the whole receipt, shown next to the combined weight
+            "batch_pieces": sum(x.pieces for x in b.lots) if b else l.pieces,
+            "batch_meters": r2(sum(x.meters for x in b.lots)) if b else r2(l.meters),
+            "first_lot_code": b.lots[0].code if b else l.code}
 
 
 def batch_out(b):
@@ -322,6 +348,14 @@ def receive_lots(body: LotReceiptIn, db=Depends(get_db)):
         m = get_or_404(db, Machine, body.machine_id, "Machine")
         if m.weaver_id != w.id:
             fail("That machine does not belong to this weaver.")
+        st = calc.machine_rods(db, m.id)
+        if st["needs_new_rod"]:
+            last = st["last_finished"]
+            when = (f"was marked finished on {dmy(last.finished_date)}" if last.finished_date
+                    else "is marked finished")
+            fail(f"Machine {m.number} of {w.name} has no running rod: rod {last.code} {when}. "
+                 f"Give a new rod to this machine first, or use 'Undo finish' on {last.code} "
+                 f"if this cloth is from that rod.")
     rods = []
     for rid in body.rod_ids:
         r = get_or_404(db, Rod, rid, "Rod")

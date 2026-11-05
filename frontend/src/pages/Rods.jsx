@@ -115,8 +115,14 @@ function WindForm() {
   );
 }
 
+const machineBusy = (m) => (m.running_rods || []).length > 0;
+const busyLabel = (m) => {
+  const r = m.running_rods || [];
+  return `Machine ${m.number} · busy: rod${r.length > 1 ? "s" : ""} ${r.join(", ")} not finished`;
+};
+
 function IssueForm() {
-  const { data: weavers } = useData("/weavers");
+  const { data: weavers, reload: reloadWeavers } = useData("/weavers");
   const { data: rods, reload } = useData("/rods?status=in_stock");
   const [weaverId, setWeaverId] = useState("");
   const [machineId, setMachineId] = useState("");
@@ -130,8 +136,11 @@ function IssueForm() {
   const save = async () => {
     const out = await run(() => api.post("/rods/issue", { rod_ids: picked, weaver_id: Number(weaverId) || 0, machine_id: Number(machineId) || null, date }),
       (r) => `${r.length} rod(s) given to ${weaver?.name}`);
-    if (out) { setPicked([]); reload(); }
+    if (out) { setPicked([]); setMachineId(""); reload(); reloadWeavers(); }
   };
+  const allBusy = machines.length > 0 && machines.every(machineBusy);
+  const machineHint = weaver && !machines.length ? "This weaver has no machines yet"
+    : allBusy ? 'All machines of this weaver have a rod that is not finished. Mark a rod finished in "All rods" first.' : "";
 
   return (
     <Card title="Give rods to a weaver">
@@ -140,9 +149,11 @@ function IssueForm() {
           <Select value={weaverId} onChange={(v) => { setWeaverId(v); setMachineId(""); }}
             options={(weavers || []).filter((w) => w.active).map((w) => ({ value: w.id, label: w.name }))} />
         </Field>
-        <Field label="Machine" hint={weaver && !machines.length ? "This weaver has no machines yet" : ""}>
+        <Field label="Machine" hint={machineHint}>
           <Select value={machineId} onChange={setMachineId} placeholder="— Choose machine —"
-            options={machines.map((m) => ({ value: m.id, label: `Machine ${m.number}${m.current_color ? ` (now: ${m.current_color} ${m.current_design})` : ""}` }))} />
+            options={machines.map((m) => (machineBusy(m)
+              ? { value: m.id, label: busyLabel(m), disabled: true }
+              : { value: m.id, label: `Machine ${m.number}${m.current_color ? ` (now: ${m.current_color} ${m.current_design})` : ""}` }))} />
         </Field>
         <Field label="Date given" required><DateInput value={date} onChange={setDate} /></Field>
       </div>

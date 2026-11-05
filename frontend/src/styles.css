@@ -246,6 +246,12 @@ label.tick-card, .tick-main { display: flex; gap: 12px; align-items: flex-start;
 }
 .saved-code { font-size: 2rem; font-weight: 800; color: var(--green); letter-spacing: .02em; }
 .notice { background: var(--amber-soft); border: 1px solid #f0cf8e; padding: 12px 16px; border-radius: 12px; margin-bottom: 18px; }
+.notice.red { background: var(--red-soft); border-color: #f2b8b2; }
+.notice.red .warn-text { color: var(--red); margin-top: 0; font-weight: 600; }
+.notice-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.doc-toggle { margin-top: 18px; }
+.doc-toggle .tbl { margin-top: 12px; }
+.doc-toggle h3 { margin-top: 12px; font-size: 1.05rem; }
 .error-box { background: var(--red-soft); color: var(--red); padding: 12px 16px; border-radius: 12px; margin-bottom: 12px; font-weight: 600; }
 .empty { padding: 26px; text-align: center; color: var(--muted); background: #faf7f2; border: 1px dashed var(--line-strong); border-radius: 12px; }
 .loading { padding: 26px; text-align: center; color: var(--muted); }
@@ -334,6 +340,8 @@ label.tick-card, .tick-main { display: flex; gap: 12px; align-items: flex-start;
   .doc { padding: 18px; }
   .doc-meta { grid-template-columns: 1fr; }
   .btn.big { width: 100%; }
+  .notice-actions { flex-direction: column; }
+  .notice-actions .btn, .doc-toggle > .btn { width: 100%; }
 
   /* tables become stacked cards on phones */
   .table-wrap { border: 0; overflow: visible; }

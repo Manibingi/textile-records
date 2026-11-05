@@ -21,12 +21,12 @@ Built with **FastAPI + SQLite** (backend) and **React** (screens). Everything ru
 |---|--------|----------------|--------------------|
 | 1 | Thread & suppliers | Each thread purchase (or opening stock) | Thread stock by type & colour |
 | 2 | Rods → Wind new rod | Total weight, steel rod weight, thread length (549 m default) | **Net thread = total − rod**; stock reduced; rod number R-0001… |
-| 3 | Rods → Give rods to weaver | Weaver, machine, rods | Machine's current colour/design; rods with each weaver |
+| 3 | Rods → Give rods to weaver | Weaver, machine, rods | Machine's current colour/design; rods with each weaver. A machine whose rod is not finished yet can't get a new rod |
 | 4 | Rods → Give extra thread | Weaver, thread, number of combs, total weight, weight of 1 empty comb (or "taken back") | **Net thread = total − combs × comb weight**; stock reduced; extra thread each weaver is holding |
-| 5 | Lots received | One combined weight for all lots from a machine, then pieces & meters of each lot | Weaver's earnings per lot (meters × rate); lot numbers L-0001… |
-| 6 | Weaver payments | Amount paid | Amount due, meters since last payment, printable slip |
+| 5 | Lots received | One combined weight for all lots from a machine, then pieces & meters of each lot | Weaver's earnings per lot (meters × rate); lot numbers L-0001…. Not allowed on a machine whose rod is finished until it gets a new rod (or "Undo finish") |
+| 6 | Weaver payments | Amount paid | Amount due, meters since last payment, printable slip (due before, paid now, balance) |
 | 7 | Cutting & stock | Tap a colour (pieces waiting from all lots), then good pieces, rejects, bundles | Pieces still to cut per colour; ready-to-sell stock; wastage % |
-| 8 | Sales & customers | Bill items, money received | Stock reduced; bill printout; amount each customer owes |
+| 8 | Sales & customers | Bill items, money received | Stock reduced; bill printout with previous balance, money received that day and balance to pay; amount each customer owes |
 
 **Reports:** summary (with rough profit), weaver-wise, machine-wise, supplier-wise, sales, wastage — for any dates. Every list has **Excel (CSV)** and **Print / PDF** buttons.
 
@@ -74,3 +74,16 @@ Tests: `cd backend && pip install pytest httpx && python -m pytest tests` (full 
 API docs: http://localhost:8000/docs
 
 Environment: set in `backend/.env` (see `backend/.env.example`): `DATABASE_URL`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `TEXTILE_DATA_DIR`, `TEXTILE_UI_DIR`, `CORS_ORIGINS`.
+
+### Development with Claude Code agents
+
+New features are planned, built, reviewed and merged by Claude Code agents (see `CLAUDE.md`):
+
+| You want to… | In Claude Code, type |
+|---|---|
+| Build the next roadmap item end to end (spec → branch → PR → review → merge → deploy) | `/ship-feature` |
+| Build a specific item from `docs/roadmap.md` | `/ship-feature F-003` |
+| Add a new idea and build it | `/ship-feature "show weaver dues on the home screen"` |
+| Only get a refreshed future plan | `/ship-feature plan-only` |
+
+Agents: `.claude/agents/` (feature-planner, feature-developer, pr-reviewer-merger). Layer conventions: `.claude/skills/` (backend, frontend, database). Design: `docs/design-document.md`. Roadmap: `docs/roadmap.md`. Every merge to `main` redeploys the live site.

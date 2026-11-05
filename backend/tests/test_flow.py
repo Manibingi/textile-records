@@ -136,6 +136,7 @@ def test_many_lots_one_weight_and_cutting_by_colour():
                                                  {"pieces": 41, "meters": 82}]}))
     assert len(rec["lots"]) == 3 and rec["pieces"] == 119 and rec["meters"] == 238 and rec["amount"] == 1190
     assert all(l["weight_kg"] == 30.5 and l["batch_lot_count"] == 3 for l in rec["lots"])
+    assert rec["lots"][0]["batch_pieces"] == 119 and rec["lots"][0]["batch_meters"] == 238
     lots = [l for l in ok(c.get(f"/api/lots?weaver_id={w['id']}"))]
     assert sum(1 for l in lots if l["first_in_batch"]) == 1
     assert ok(c.get(f"/api/weavers/{w['id']}"))["balance"] == 1190
@@ -191,6 +192,7 @@ def test_upgrade_old_database():
         "assert u['waiting'] == 10, u\n"
         "l = c.get('/api/lots').json()[0]\n"
         "assert l['weight_kg'] == 9.5 and l['batch_code'] is None\n"
+        "assert l['batch_pieces'] == 40 and l['batch_meters'] == 60 and l['first_lot_code'] == 'L-0001'\n"
         "assert c.get('/api/thread-issues').json()[0]['quantity_kg'] == 2.5\n"
         "assert [x['source'] for x in c.get('/api/cutting').json()] == ['opening', 'woven']\n"
         "print('upgrade ok')\n")
@@ -198,3 +200,151 @@ def test_upgrade_old_database():
     r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
                        cwd=_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
     assert r.returncode == 0 and "upgrade ok" in r.stdout, r.stderr[-1500:]
+
+
+# ---------------- F-019 ----------------
+def _wind(n, thread="F19 Warp", color="Blue"):
+    return [ok(c.post("/api/rods", json={"date": "2026-10-20", "thread_type": thread, "color": color,
+                                          "gross_weight": 15, "rod_weight": 12}))["id"] for _ in range(n)]
+
+
+def _rod(rid):
+    return [r for r in ok(c.get("/api/rods")) if r["id"] == rid][0]
+
+
+def test_one_running_rod_per_machine():
+    ok(c.post("/api/purchases", json={"date": "2026-10-20", "thread_type": "F19 Warp", "color": "Blue",
+                                       "quantity_kg": 100, "rate_per_kg": 200}))
+    name = "Rod Rule"
+    w = ok(c.post("/api/weavers", json={"name": name, "rate_per_meter": 4, "machine_count": 2}))
+    m1, m2 = w["machines"]
+    a, b, cc, dd = _wind(4)
+    A, D = _rod(a), _rod(dd)
+
+    def give(ids, mid):
+        return c.post("/api/rods/issue", json={"rod_ids": ids, "weaver_id": w["id"], "machine_id": mid,
+                                                "date": "2026-10-21"})
+
+    ok(give([a], m1["id"]))
+    r = give([b], m1["id"])
+    assert r.status_code == 400
+    assert r.json()["detail"] == (f"Machine {m1['number']} of {name} already has rod {A['code']} that is not finished. "
+                                  f"Mark it finished (or take it back to stock) before giving a new rod.")
+    assert b in [x["id"] for x in ok(c.get("/api/rods?status=in_stock"))]
+    ok(give([b], m2["id"]))
+    ok(give([cc], None))
+    assert give([dd], m1["id"]).status_code == 400
+    assert _rod(dd)["status"] == "in_stock"
+    ok(c.post(f"/api/rods/{a}/finish", json={"date": "2026-10-22"}))
+    ok(give([dd], m1["id"]))
+    # several rods in one give to an empty machine are allowed
+    ok(c.post(f"/api/rods/{dd}/return"))
+    e, f = _wind(2)
+    E, F = _rod(e), _rod(f)
+    ok(give([dd, e], m1["id"]))
+    r = give([f], m1["id"])
+    assert r.status_code == 400
+    assert r.json()["detail"] == (f"Machine {m1['number']} of {name} already has rods {D['code']}, {E['code']} that are "
+                                  f"not finished. Mark them finished (or take them back to stock) before giving a new rod.")
+    # taking rods back to stock frees the machine
+    ok(c.post(f"/api/rods/{dd}/return"))
+    ok(c.post(f"/api/rods/{e}/return"))
+    ok(give([f], m1["id"]))
+    # undo finish is refused while another rod runs on the machine
+    r = c.post(f"/api/rods/{a}/reopen")
+    assert r.status_code == 400
+    assert r.json()["detail"] == (f"Machine {m1['number']} of {name} already has rod {F['code']} running. "
+                                  f"Finish that rod (or take it back to stock) before undoing the finish of {A['code']}.")
+    assert _rod(a)["status"] == "finished"
+    ok(c.post(f"/api/rods/{f}/finish", json={"date": "2026-10-23"}))
+    assert ok(c.post(f"/api/rods/{a}/reopen"))["status"] == "with_weaver"
+    # a rod with no machine reopens freely
+    ok(c.post(f"/api/rods/{cc}/finish", json={"date": "2026-10-23"}))
+    assert ok(c.post(f"/api/rods/{cc}/reopen"))["status"] == "with_weaver"
+
+
+def test_no_lots_after_finished_rod():
+    ok(c.post("/api/purchases", json={"date": "2026-10-20", "thread_type": "F19 Warp", "color": "Blue",
+                                       "quantity_kg": 100, "rate_per_kg": 200}))
+    name = "Lot Rule"
+    w = ok(c.post("/api/weavers", json={"name": name, "rate_per_meter": 4, "machine_count": 3}))
+    wid = w["id"]
+    m1, m2, m3 = [m["id"] for m in w["machines"]]
+    num1 = w["machines"][0]["number"]
+
+    def lot(mid, **extra):
+        return c.post("/api/lots", json={"date": "2026-10-24", "weaver_id": wid, "machine_id": mid,
+                                         "product": "Towel", "color": "Blue",
+                                         "lots": [{"pieces": 40, "meters": 80}], **extra})
+
+    ok(lot(m3))  # a machine that never had a rod is not blocked
+    a, b, cc = _wind(3)
+    A, B = _rod(a), _rod(b)
+    ok(c.post("/api/rods/issue", json={"rod_ids": [a], "weaver_id": wid, "machine_id": m1, "date": "2026-10-21"}))
+    ok(lot(m1, rod_ids=[a], finish_rod_ids=[a]))  # finishing in the same save is fine
+    assert _rod(a)["status"] == "finished"
+    before = len(ok(c.get(f"/api/lots?weaver_id={wid}")))
+    r = lot(m1)
+    assert r.status_code == 400
+    assert r.json()["detail"] == (f"Machine {num1} of {name} has no running rod: rod {A['code']} was marked finished on "
+                                  f"24-10-2026. Give a new rod to this machine first, or use 'Undo finish' on "
+                                  f"{A['code']} if this cloth is from that rod.")
+    assert len(ok(c.get(f"/api/lots?weaver_id={wid}"))) == before
+    ok(lot(None))  # no machine: not checked
+    ms = ok(c.get(f"/api/weavers/{wid}"))["machines"]
+    assert ms[0]["needs_new_rod"] is True and ms[0]["running_rods"] == []
+    assert ms[0]["last_finished_rod"] == {"code": A["code"], "finished_date": "2026-10-24"}
+    assert ms[2]["needs_new_rod"] is False and ms[2]["last_finished_rod"] is None
+    assert any(x["id"] == wid and x["machines"][0]["needs_new_rod"] for x in ok(c.get("/api/weavers")))
+    # undo finish lets the late lot in
+    ok(c.post(f"/api/rods/{a}/reopen"))
+    ok(lot(m1))
+    ok(c.post(f"/api/rods/{a}/finish", json={"date": "2026-10-24"}))
+    assert lot(m1).status_code == 400
+    # a new rod frees the machine
+    ok(c.post("/api/rods/issue", json={"rod_ids": [b], "weaver_id": wid, "machine_id": m1, "date": "2026-10-25"}))
+    ok(lot(m1))
+    m = ok(c.get(f"/api/weavers/{wid}"))["machines"][0]
+    assert m["needs_new_rod"] is False and m["running_rods"] == [B["code"]]
+    # a rod taken back to stock does not block the machine
+    ok(c.post("/api/rods/issue", json={"rod_ids": [cc], "weaver_id": wid, "machine_id": m2, "date": "2026-10-25"}))
+    ok(c.post(f"/api/rods/{cc}/return"))
+    ok(lot(m2))
+
+
+def test_lot_list_receipt_totals():
+    w = ok(c.post("/api/weavers", json={"name": "Receipt Totals", "rate_per_meter": 4}))
+    ok(c.post("/api/lots", json={"date": "2026-10-24", "weaver_id": w["id"], "product": "Lungi", "color": "White",
+                                 "weight_kg": 20, "lots": [{"pieces": 40, "meters": 80}, {"pieces": 38, "meters": 76.5}]}))
+    lots = sorted(ok(c.get(f"/api/lots?weaver_id={w['id']}")), key=lambda l: l["id"])
+    assert len(lots) == 2
+    for l in lots:
+        assert l["batch_pieces"] == 78 and l["batch_meters"] == 156.5 and l["batch_lot_count"] == 2
+        assert l["first_lot_code"] == lots[0]["code"]
+    assert (lots[0]["pieces"], lots[0]["meters"]) == (40, 80.0)
+    assert (lots[1]["pieces"], lots[1]["meters"]) == (38, 76.5)
+    one = ok(c.post("/api/lots", json={"date": "2026-10-25", "weaver_id": w["id"], "product": "Lungi", "color": "White",
+                                       "lots": [{"pieces": 41, "meters": 82}]}))["lots"][0]
+    assert one["batch_pieces"] == 41 and one["batch_meters"] == 82 and one["first_lot_code"] == one["code"]
+    assert ok(c.get(f"/api/lots/{one['id']}"))["batch_pieces"] == 41
+
+
+def test_bill_account():
+    ok(c.post("/api/cutting", json={"date": "2026-09-30", "source": "opening", "product": "Towel",
+                                     "color": "F19 Account", "good_pieces": 100}))
+    cust = ok(c.post("/api/customers", json={"name": "Account Test", "opening_balance": 500}))
+
+    def item(q):
+        return [{"product": "Towel", "color": "F19 Account", "quantity": q, "rate": 100}]
+
+    a = ok(c.post("/api/sales", json={"date": "2026-10-01", "customer_id": cust["id"], "items": item(10)}))
+    ok(c.post("/api/customer-payments", json={"date": "2026-10-01", "customer_id": cust["id"], "amount": 300}))
+    b = ok(c.post("/api/sales", json={"date": "2026-10-05", "customer_id": cust["id"], "items": item(20)}))
+    ok(c.post("/api/customer-payments", json={"date": "2026-10-05", "customer_id": cust["id"], "amount": 1000}))
+    assert ok(c.get(f"/api/sales/{a['id']}"))["account"] == {"previous_balance": 500, "bill_amount": 1000,
+                                                             "total_due": 1500, "received_on_date": 300,
+                                                             "balance_after": 1200}
+    acc = ok(c.get(f"/api/sales/{b['id']}"))["account"]
+    assert acc["previous_balance"] == 1200 and acc["bill_amount"] == 2000 and acc["total_due"] == 3200
+    assert acc["received_on_date"] == 1000 and acc["balance_after"] == 2200
+    assert all("account" not in s for s in ok(c.get("/api/sales")))

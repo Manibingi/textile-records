@@ -126,7 +126,7 @@ class SaleIn(In):
     notes: str = ""
 
 
-def sale_out(s, full=False):
+def sale_out(s, full=False, db=None):
     out = {"id": s.id, "invoice_no": s.invoice_no, "date": d(s.date), "customer_id": s.customer_id,
            "customer_name": s.customer.name, "total": r2(s.total), "notes": s.notes,
            "pieces": sum(i.quantity for i in s.items)}
@@ -135,6 +135,8 @@ def sale_out(s, full=False):
     if full:
         c = s.customer
         out["customer"] = {"name": c.name, "phone": c.phone, "address": c.address, "gstin": c.gstin}
+        if db is not None:
+            out["account"] = calc.bill_account(db, s)
     return out
 
 
@@ -149,7 +151,7 @@ def list_sales(customer_id: Optional[int] = None, from_: Optional[date] = Query(
 
 @router.get("/sales/{sid}")
 def get_sale(sid: int, db=Depends(get_db)):
-    return sale_out(get_or_404(db, Sale, sid, "Bill"), full=True)
+    return sale_out(get_or_404(db, Sale, sid, "Bill"), full=True, db=db)
 
 
 @router.post("/sales")
