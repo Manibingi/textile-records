@@ -24,29 +24,31 @@ export default function Sales() {
 }
 
 const itemKey = (p, c) => `${p}|||${c}`;
-const blankItem = () => ({ stock: "", quantity: "", rate: "" });
+const blankItem = () => ({ stock: "", quantity: "" });
 
 function BillForm({ onAddCustomer }) {
   const nav = useNavigate();
   const { data: customers } = useData("/customers");
   const { data: stock } = useData("/finished-stock");
-  const [f, setF] = useState({ date: today(), customer_id: "", notes: "" });
+  const [f, setF] = useState({ date: today(), customer_id: "", rate: "", notes: "" });
   const [items, setItems] = useState([blankItem()]);
   const [run, busy] = useAction();
   const ready = (stock || []).filter((s) => s.in_stock > 0);
   const setItem = (i, k, v) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-  const total = items.reduce((s, it) => s + n(it.quantity) * n(it.rate), 0);
+  // one price per piece for the whole bill: every towel or lungi on it is charged the same
   const pieces = items.reduce((s, it) => s + n(it.quantity), 0);
+  const total = pieces * n(f.rate);
   const chosen = new Set(items.map((it) => it.stock).filter(Boolean));
   const allChosen = ready.length > 0 && ready.every((x) => chosen.has(itemKey(x.product, x.color)));
 
   const save = async () => {
     const lines = items.filter((it) => it.stock && it.quantity !== "").map((it) => {
       const [product, color] = it.stock.split("|||");
-      return { product, color, quantity: n(it.quantity), rate: n(it.rate) };
+      return { product, color, quantity: n(it.quantity), rate: n(f.rate) };
     });
     if (!f.customer_id) return run(() => Promise.reject(new Error("Please choose the customer.")));
     if (!lines.length) return run(() => Promise.reject(new Error("Add at least one item with quantity.")));
+    if (f.rate === "") return run(() => Promise.reject(new Error("Enter the price per piece.")));
     const out = await run(() => api.post("/sales", { ...f, customer_id: Number(f.customer_id), items: lines }), (s) => `Bill ${s.invoice_no} saved · ${rs(s.total)}`);
     if (out) nav(`/sales/bill/${out.id}`);
   };
@@ -78,8 +80,6 @@ function BillForm({ onAddCustomer }) {
               <Field label="Pieces" hint={s && n(it.quantity) > s.in_stock ? `⚠ Only ${s.in_stock} ready` : ""}>
                 <NumInput value={it.quantity} onChange={(v) => setItem(i, "quantity", v)} step="1" />
               </Field>
-              <Field label="Rate per piece (₹)"><NumInput value={it.rate} onChange={(v) => setItem(i, "rate", v)} /></Field>
-              <div className="bill-amount">{rs(n(it.quantity) * n(it.rate))}</div>
               {items.length > 1 && <button type="button" className="x-btn" aria-label="Remove item" onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}>✕</button>}
             </div>
           );
@@ -88,11 +88,14 @@ function BillForm({ onAddCustomer }) {
       <Btn kind="ghost" onClick={() => setItems((xs) => [...xs, blankItem()])} disabled={allChosen}>+ Add another item</Btn>
       {allChosen && <div className="hint">All packed items are already on this bill.</div>}
       <div className="form" style={{ marginTop: 12 }}>
-        <Field label="Notes" wide><Input value={f.notes} onChange={(v) => setF((x) => ({ ...x, notes: v }))} placeholder="Optional, e.g. transport details" /></Field>
+        <Field label="Price per piece (₹)" required hint="Same price for every colour and product on this bill">
+          <NumInput value={f.rate} onChange={(v) => setF((x) => ({ ...x, rate: v }))} />
+        </Field>
+        <Field label="Notes"><Input value={f.notes} onChange={(v) => setF((x) => ({ ...x, notes: v }))} placeholder="Optional, e.g. transport details" /></Field>
       </div>
       <div className="calc green">
         <div className="calc-label">Bill total</div>
-        <div className="calc-formula">{pieces} pieces</div>
+        <div className="calc-formula">{num(pieces, 0)} pieces × {rs(n(f.rate))} each</div>
         <div className="calc-result">{rs(total)}</div>
       </div>
       <div className="form-actions"><Btn big onClick={save} disabled={busy}>✓ Save bill & print</Btn></div>

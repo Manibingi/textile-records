@@ -29,17 +29,32 @@ function readLastWeight() {
   try { return localStorage.getItem(LAST_ROD_WEIGHT) || ""; } catch { return ""; }
 }
 
+const blankColor = () => ({ color: "", kg: "" });
+
 function WindForm() {
   const { data: settings } = useData("/settings");
   const { data: stock, reload } = useData("/thread-stock");
   const blank = (keep = {}) => ({
-    date: keep.date || today(), thread_type: keep.thread_type || "", color: keep.color || "", design: keep.design || "",
+    date: keep.date || today(), thread_type: keep.thread_type || "", design: keep.design || "",
     gross_weight: "", rod_weight: keep.rod_weight || readLastWeight(), length_m: keep.length_m || "", notes: "",
+    // colour names of the last rod carry over (white plus one more is the usual design); weights are typed again
+    colors: keep.colors ? keep.colors.map((c) => ({ color: c.color, kg: "" })) : [blankColor()],
   });
   const [f, setF] = useState(blank());
   const [saved, setSaved] = useState(null);
   const [run, busy] = useAction();
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
+  const setColor = (i, k, v) => setF((x) => ({ ...x, colors: x.colors.map((c, j) => (j === i ? { ...c, [k]: v } : c)) }));
+  const removeColor = (i) => setF((x) => ({ ...x, colors: x.colors.filter((_, j) => j !== i) }));
+  const addColor = () => setF((x) => ({ ...x, colors: [...x.colors, blankColor()] }));
+  // a stock colour chip fills the first empty colour line, or adds one, unless the colour is already on the rod
+  const pickColor = (name) => setF((x) => {
+    const same = (c) => c.color.trim().toLowerCase() === name.toLowerCase();
+    if (x.colors.some(same)) return x;
+    const empty = x.colors.findIndex((c) => !c.color.trim());
+    if (empty >= 0) return { ...x, colors: x.colors.map((c, j) => (j === empty ? { ...c, color: name } : c)) };
+    return { ...x, colors: [...x.colors, { color: name, kg: "" }] };
+  });
 
   useEffect(() => {
     if (!settings) return;
@@ -50,13 +65,23 @@ function WindForm() {
     }));
   }, [settings]);
 
+  const sameThread = (s) => s.thread_type.toLowerCase() === f.thread_type.trim().toLowerCase();
+  const inStock = (name) => (stock || []).find((s) => sameThread(s) && s.color.toLowerCase() === name.trim().toLowerCase());
+  const threads = [...new Set((stock || []).filter((s) => s.stock_kg > 0).map((s) => s.thread_type))];
+  const colourChips = (stock || []).filter((s) => s.stock_kg > 0 && f.thread_type && sameThread(s));
+
   const net = n(f.gross_weight) - n(f.rod_weight);
-  const match = (stock || []).find((s) =>
-    s.thread_type.toLowerCase() === f.thread_type.trim().toLowerCase() && s.color.toLowerCase() === f.color.trim().toLowerCase());
-  const available = (stock || []).filter((s) => s.stock_kg > 0);
+  const colorRows = f.colors.filter((c) => c.color.trim() || c.kg !== "");
+  const colorTotal = colorRows.reduce((s, c) => s + n(c.kg), 0);
+  // the colour weights must equal the net thread to 3 decimals, the same test the server makes
+  const colorsMatch = Math.round(colorTotal * 1000) === Math.round(net * 1000);
 
   const save = async () => {
-    const out = await run(() => api.post("/rods", { ...f, length_m: f.length_m || 549 }));
+    if (colorRows.some((c) => !c.color.trim() || !(n(c.kg) > 0))) {
+      return run(() => Promise.reject(new Error("Each colour needs a name and a weight.")));
+    }
+    const colors = colorRows.map((c) => ({ color: c.color, kg: n(c.kg) }));
+    const out = await run(() => api.post("/rods", { ...f, colors, length_m: f.length_m || 549 }));
     if (out) {
       try { localStorage.setItem(LAST_ROD_WEIGHT, f.rod_weight); } catch { /* ignore */ }
       setSaved(out);
@@ -79,15 +104,15 @@ function WindForm() {
         </div>
       )}
       <Card title="Wind a new rod">
-        {available.length > 0 && (
+        {threads.length > 0 && (
           <div className="pick">
             <div className="field-label">Choose thread from stock (or type below)</div>
             <div className="chips">
-              {available.map((s) => (
-                <button key={s.thread_type + s.color} type="button"
-                  className={`chip big ${match === s ? "on" : ""}`}
-                  onClick={() => setF((x) => ({ ...x, thread_type: s.thread_type, color: s.color }))}>
-                  {s.thread_type} · {s.color} <small>({kg(s.stock_kg)})</small>
+              {threads.map((t) => (
+                <button key={t} type="button"
+                  className={`chip big ${sameThread({ thread_type: t }) ? "on" : ""}`}
+                  onClick={() => set("thread_type")(t)}>
+                  {t}
                 </button>
               ))}
             </div>
@@ -96,9 +121,6 @@ function WindForm() {
         <div className="form">
           <Field label="Date" required><DateInput value={f.date} onChange={set("date")} /></Field>
           <Field label="Thread type" required><Input value={f.thread_type} onChange={set("thread_type")} /></Field>
-          <Field label="Colour" required hint={match ? `In stock: ${kg(match.stock_kg)}` : f.thread_type && f.color ? "Not found in stock" : ""}>
-            <Input value={f.color} onChange={set("color")} />
-          </Field>
           <Field label="Design name" hint="e.g. Check, Plain, Border"><Input value={f.design} onChange={set("design")} /></Field>
           <Field label="Total weight (rod + thread) kg" required><NumInput value={f.gross_weight} onChange={set("gross_weight")} /></Field>
           <Field label="Steel rod weight kg" required hint="Remembered for next time"><NumInput value={f.rod_weight} onChange={set("rod_weight")} /></Field>
@@ -109,6 +131,39 @@ function WindForm() {
           formula={`${num(f.gross_weight, 3)} kg − ${num(f.rod_weight, 3)} kg`}
           result={f.gross_weight && net <= 0 ? "Total weight must be more than rod weight" : kg(net > 0 ? net : 0)}
           tone={f.gross_weight && net <= 0 ? "red" : "blue"} />
+
+        <div className="field-label" style={{ marginTop: 12 }}>Colours used in this rod</div>
+        <div className="hint">White plus one colour, or white with two or three colours. Type each colour's weight.</div>
+        {colourChips.length > 0 && (
+          <div className="chips" style={{ marginTop: 8 }}>
+            {colourChips.map((s) => (
+              <button key={s.color} type="button"
+                className={`chip ${f.colors.some((c) => c.color.trim().toLowerCase() === s.color.toLowerCase()) ? "on" : ""}`}
+                onClick={() => pickColor(s.color)}>
+                {s.color} <small>({kg(s.stock_kg)})</small>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="bill-items">
+          {f.colors.map((c, i) => {
+            const m = c.color.trim() && f.thread_type && inStock(c.color);
+            return (
+              <div key={i} className="color-line">
+                <Field label="Colour" hint={m ? `In stock: ${kg(m.stock_kg)}` : c.color.trim() && f.thread_type ? "Not found in stock" : ""}>
+                  <Input value={c.color} onChange={(v) => setColor(i, "color", v)} placeholder="e.g. White" />
+                </Field>
+                <Field label="Thread weight kg"><NumInput value={c.kg} onChange={(v) => setColor(i, "kg", v)} /></Field>
+                {f.colors.length > 1 && <button type="button" className="x-btn" aria-label="Remove colour" onClick={() => removeColor(i)}>✕</button>}
+              </div>
+            );
+          })}
+        </div>
+        <Btn kind="ghost" onClick={addColor}>+ Add another colour</Btn>
+        <CalcBox label="Colours add up to (calculated)"
+          formula={colorRows.length ? `${colorRows.map((c) => `${c.color.trim() || "?"} ${num(c.kg, 3)} kg`).join(" + ")} = ${num(colorTotal, 3)} kg` : "Type each colour and its weight"}
+          result={!colorRows.length || net <= 0 ? "" : colorsMatch ? `Matches net thread ${kg(net)} ✓` : `Must add up to ${kg(net)}`}
+          tone={!colorRows.length || net <= 0 ? "blue" : colorsMatch ? "green" : "red"} />
         <div className="form-actions"><Btn big onClick={save} disabled={busy}>✓ Save rod</Btn></div>
       </Card>
     </>

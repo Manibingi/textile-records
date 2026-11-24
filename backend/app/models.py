@@ -89,6 +89,18 @@ class Rod(Base):
     weaver = relationship("Weaver")
     machine = relationship("Machine")
     lots = relationship("Lot", secondary=lot_rods, back_populates="rods")
+    colors = relationship("RodColor", back_populates="rod", cascade="all, delete-orphan",
+                          order_by="RodColor.id")
+
+
+class RodColor(Base):
+    """One colour used in a rod design, and its net thread weight (white + one or more colours)."""
+    __tablename__ = "rod_colors"
+    id = Column(Integer, primary_key=True)
+    rod_id = Column(Integer, ForeignKey("rods.id"), nullable=False)
+    color = Column(String, nullable=False)
+    kg = Column(Float, nullable=False)
+    rod = relationship("Rod", back_populates="colors")
 
 
 class LotBatch(Base):

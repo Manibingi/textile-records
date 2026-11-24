@@ -1,7 +1,7 @@
 """All the sums the business used to do by hand, in one place."""
 from datetime import date
 from sqlalchemy import func, or_, and_
-from .models import (Purchase, Rod, ThreadIssue, Lot as _Lot, Lot, WeaverPayment, CuttingEntry, SaleItem, Sale,
+from .models import (Purchase, Rod, RodColor, ThreadIssue, Lot as _Lot, Lot, WeaverPayment, CuttingEntry, SaleItem, Sale,
                      CustomerPayment, Weaver, Customer)
 from .util import r2, r3, key
 
@@ -20,8 +20,9 @@ def thread_stock(db):
     for t, c, kg in db.query(Purchase.thread_type, Purchase.color, func.sum(Purchase.quantity_kg)) \
             .group_by(Purchase.thread_type, Purchase.color):
         slot(t, c)["purchased_kg"] += kg or 0
-    for t, c, kg, n in db.query(Rod.thread_type, Rod.color, func.sum(Rod.net_weight), func.count(Rod.id)) \
-            .group_by(Rod.thread_type, Rod.color):
+    # each colour line of a rod counts against its own colour (white + red = two lines)
+    for t, c, kg, n in db.query(Rod.thread_type, RodColor.color, func.sum(RodColor.kg), func.count(RodColor.id)) \
+            .join(RodColor, RodColor.rod_id == Rod.id).group_by(Rod.thread_type, RodColor.color):
         s = slot(t, c)
         s["used_kg"] += kg or 0
         s["rods"] += n

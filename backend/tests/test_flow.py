@@ -182,6 +182,11 @@ def test_upgrade_old_database():
     INSERT INTO cutting_entries VALUES (1, '2026-10-02', 1, 'Towel', 'Red', 30, 0, 3, '');
     INSERT INTO cutting_entries VALUES (2, '2026-10-02', NULL, 'Towel', 'Red', 5, 0, 0, '');
     INSERT INTO thread_issues VALUES (1, '2026-10-02', 1, NULL, 'T', 'C', 2.5, 'given', '');
+    CREATE TABLE rods (id INTEGER PRIMARY KEY, code VARCHAR, date DATE, thread_type VARCHAR, color VARCHAR,
+        design VARCHAR, gross_weight FLOAT, rod_weight FLOAT, net_weight FLOAT, length_m FLOAT, status VARCHAR,
+        weaver_id INTEGER, machine_id INTEGER, issue_date DATE, finished_date DATE, notes TEXT);
+    INSERT INTO rods VALUES (1, 'R-0001', '2026-10-01', 'Old T', 'Red', '', 10, 2, 8, 549, 'in_stock',
+        NULL, NULL, NULL, NULL, '');
     """)
     con.commit(); con.close()
     code = (
@@ -195,6 +200,10 @@ def test_upgrade_old_database():
         "assert l['batch_pieces'] == 40 and l['batch_meters'] == 60 and l['first_lot_code'] == 'L-0001'\n"
         "assert c.get('/api/thread-issues').json()[0]['quantity_kg'] == 2.5\n"
         "assert [x['source'] for x in c.get('/api/cutting').json()] == ['opening', 'woven']\n"
+        "r = c.get('/api/rods').json()[0]\n"
+        "assert r['colors'] == [{'color': 'Red', 'kg': 8.0}], r\n"
+        "old = [s for s in c.get('/api/thread-stock').json() if s['thread_type'] == 'Old T'][0]\n"
+        "assert old['used_kg'] == 8 and old['stock_kg'] == -8, old\n"
         "print('upgrade ok')\n")
     env = {**_os.environ, "TEXTILE_DATA_DIR": folder}
     r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
@@ -348,3 +357,39 @@ def test_bill_account():
     assert acc["previous_balance"] == 1200 and acc["bill_amount"] == 2000 and acc["total_due"] == 3200
     assert acc["received_on_date"] == 1000 and acc["balance_after"] == 2200
     assert all("account" not in s for s in ok(c.get("/api/sales")))
+
+
+# ---------------- F-020 ----------------
+def test_rod_colours_and_thread_stock():
+    ok(c.post("/api/purchases", json={"date": "2026-11-01", "thread_type": "Colour Warp", "color": "White",
+                                       "quantity_kg": 50, "rate_per_kg": 200}))
+    ok(c.post("/api/purchases", json={"date": "2026-11-01", "thread_type": "Colour Warp", "color": "Red",
+                                       "quantity_kg": 5, "rate_per_kg": 200}))
+    # net thread = 25.34 - 12 = 13.34 kg, so the colour weights must add up to that
+    base = {"date": "2026-11-02", "thread_type": "Colour Warp", "design": "Check", "gross_weight": 25.34,
+            "rod_weight": 12}
+    short = c.post("/api/rods", json={**base, "colors": [{"color": "White", "kg": 10}, {"color": "Red", "kg": 3}]})
+    assert short.status_code == 400
+    assert short.json()["detail"] == ("The colours add up to 13.0 kg, but the net thread on this rod is 13.34 kg. "
+                                      "Check the weight of each colour.")
+    repeat = c.post("/api/rods", json={**base, "colors": [{"color": "White", "kg": 10}, {"color": "white ", "kg": 3.34}]})
+    assert repeat.status_code == 400
+    assert c.post("/api/rods", json={**base, "colors": []}).status_code == 400  # no colour at all
+
+    rod = ok(c.post("/api/rods", json={**base, "colors": [{"color": "White", "kg": 10},
+                                                          {"color": "Red", "kg": 3.34}]}))
+    assert rod["color"] == "White + Red" and rod["net_weight"] == 13.34
+    assert rod["colors"] == [{"color": "White", "kg": 10}, {"color": "Red", "kg": 3.34}]
+    assert "warning" not in rod
+    st = {s["color"]: s for s in ok(c.get("/api/thread-stock")) if s["thread_type"] == "Colour Warp"}
+    assert st["White"]["used_kg"] == 10 and st["White"]["stock_kg"] == 40
+    assert st["Red"]["used_kg"] == 3.34 and st["Red"]["stock_kg"] == 1.66
+
+    # one colour given as before: the whole net weight is that colour, and a short colour is a warning
+    single = ok(c.post("/api/rods", json={"date": "2026-11-02", "thread_type": "Colour Warp", "color": "Red",
+                                          "gross_weight": 15, "rod_weight": 12}))
+    assert single["colors"] == [{"color": "Red", "kg": 3}] and single["color"] == "Red"
+    assert "Thread stock for Colour Warp Red was only 1.66 kg" in single["warning"]
+    ok(c.delete(f"/api/rods/{single['id']}"))  # its colour lines go with it
+    st = {s["color"]: s for s in ok(c.get("/api/thread-stock")) if s["thread_type"] == "Colour Warp"}
+    assert st["Red"]["used_kg"] == 3.34 and st["Red"]["stock_kg"] == 1.66
