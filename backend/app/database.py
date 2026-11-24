@@ -53,6 +53,10 @@ def upgrade_old_database():
         if "cutting_entries" in insp.get_table_names():
             con.execute(text("UPDATE cutting_entries SET source = CASE WHEN lot_id IS NULL THEN 'opening' "
                              "ELSE 'woven' END WHERE source IS NULL"))
+        if "rods" in insp.get_table_names() and "rod_colors" in insp.get_table_names():
+            # rods made before colour lines existed: one colour line holding the whole net weight, as before
+            con.execute(text("INSERT INTO rod_colors (rod_id, color, kg) SELECT r.id, r.color, r.net_weight "
+                             "FROM rods r WHERE NOT EXISTS (SELECT 1 FROM rod_colors rc WHERE rc.rod_id = r.id)"))
 
 
 def get_db():

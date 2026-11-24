@@ -287,8 +287,8 @@ label.tick-card, .tick-main { display: flex; gap: 12px; align-items: flex-start;
 
 /* ---------- Bill items ---------- */
 .bill-items { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 12px; }
-.bill-item { display: grid; grid-template-columns: 2fr 1fr 1fr auto auto; gap: 12px; align-items: end; padding: 12px; background: #faf7f2; border-radius: 12px; }
-.bill-amount { font-weight: 750; font-size: 1.15rem; min-width: 110px; text-align: right; padding-bottom: 14px; font-variant-numeric: tabular-nums; }
+.color-line { display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; align-items: end; padding: 12px; background: #faf7f2; border-radius: 12px; }
+.bill-item { display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; align-items: end; padding: 12px; background: #faf7f2; border-radius: 12px; }
 
 /* ---------- Printable documents ---------- */
 .doc-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
@@ -329,12 +329,13 @@ label.tick-card, .tick-main { display: flex; gap: 12px; align-items: flex-start;
   .card { padding: 16px; }
   .form { grid-template-columns: 1fr; }
   .bill-item { grid-template-columns: 1fr 1fr; }
+  .color-line { grid-template-columns: 1fr 1fr; }
+  .color-line .field:first-child { grid-column: 1 / -1; }
   .lot-line { grid-template-columns: 1fr 1fr 44px; }
   .lot-line-no { grid-column: 1 / -1; padding-bottom: 0; }
   .lot-line-amt { text-align: left; padding-bottom: 14px; }
   .colour-grid { grid-template-columns: repeat(2, 1fr); }
   .bill-item .field:first-child { grid-column: 1 / -1; }
-  .bill-amount { text-align: left; padding-bottom: 0; }
   .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
   .tab { white-space: nowrap; }
   .doc { padding: 18px; }

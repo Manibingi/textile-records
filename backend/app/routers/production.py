@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import Field
 from sqlalchemy import func
 from ..database import get_db
-from ..models import Purchase, Supplier, Rod, ThreadIssue, LotBatch, Weaver, Machine, Lot, CuttingEntry
+from ..models import Purchase, Supplier, Rod, RodColor, ThreadIssue, LotBatch, Weaver, Machine, Lot, CuttingEntry
 from ..util import In, get_or_404, fail, r2, r3, d, date_filter, key
 from .. import calc
 
@@ -68,10 +68,16 @@ def get_thread_stock(db=Depends(get_db)):
 
 
 # ---------------- Rods ----------------
+class RodColorIn(In):
+    color: str = Field(min_length=1)
+    kg: float = Field(gt=0)
+
+
 class RodIn(In):
     date: date
     thread_type: str = Field(min_length=1)
-    color: str = Field(min_length=1)
+    color: str = ""  # only used when no colours list is given: the whole net weight is that colour
+    colors: List[RodColorIn] = []  # e.g. White 10 kg + Red 3.34 kg; must add up to the net thread
     design: str = ""
     gross_weight: float = Field(gt=0)
     rod_weight: float = Field(ge=0)
@@ -94,6 +100,7 @@ def rod_out(r):
     return {"id": r.id, "code": r.code, "date": d(r.date), "thread_type": r.thread_type, "color": r.color,
             "design": r.design, "gross_weight": r3(r.gross_weight), "rod_weight": r3(r.rod_weight),
             "net_weight": r3(r.net_weight), "length_m": r2(r.length_m), "status": r.status,
+            "colors": [{"color": x.color, "kg": r3(x.kg)} for x in r.colors],
             "weaver_id": r.weaver_id, "weaver_name": r.weaver.name if r.weaver else None,
             "machine_id": r.machine_id, "machine_number": r.machine.number if r.machine else None,
             "issue_date": d(r.issue_date), "finished_date": d(r.finished_date), "notes": r.notes,
@@ -119,16 +126,31 @@ def create_rod(body: RodIn, db=Depends(get_db)):
     if body.gross_weight <= body.rod_weight:
         fail("Total weight must be more than the steel rod weight.")
     net = r3(body.gross_weight - body.rod_weight)
-    available = calc.thread_available(db, body.thread_type, body.color)
-    r = Rod(**body.model_dump(), net_weight=net, status="in_stock")
+    parts = body.colors or ([RodColorIn(color=body.color, kg=net)] if body.color else [])
+    if not parts:
+        fail("Enter the colour of the thread and its weight.")
+    if len({key(p.color) for p in parts}) < len(parts):
+        fail("Each colour can be used only once on a rod. Add the weights of a repeated colour together.")
+    if body.colors and abs(r3(sum(p.kg for p in body.colors)) - net) > 0.0005:
+        fail(f"The colours add up to {r3(sum(p.kg for p in body.colors))} kg, but the net thread on this rod "
+             f"is {net} kg. Check the weight of each colour.")
+    short = []
+    for p in parts:
+        available = calc.thread_available(db, body.thread_type, p.color)
+        if p.kg > available + 1e-9:
+            short.append(f"Thread stock for {body.thread_type} {p.color} was only {available} kg. "
+                         f"Stock is now negative — please check purchases.")
+    fields = body.model_dump(exclude={"colors"})
+    fields["color"] = " + ".join(p.color for p in parts)
+    r = Rod(**fields, net_weight=net, status="in_stock")
+    r.colors = [RodColor(color=p.color, kg=r3(p.kg)) for p in parts]
     db.add(r)
     db.flush()
     r.code = f"R-{r.id:04d}"
     db.commit()
     out = rod_out(r)
-    if net > available + 1e-9:
-        out["warning"] = (f"Thread stock for {body.thread_type} {body.color} was only {available} kg. "
-                          f"Stock is now negative — please check purchases.")
+    if short:
+        out["warning"] = " ".join(short)
     return out
 
 
