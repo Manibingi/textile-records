@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useData } from "./ui";
 import Home from "./pages/Home";
@@ -14,14 +14,14 @@ import Settings from "./pages/Settings";
 
 const NAV = [
   { to: "/", icon: "🏠", label: "Home", end: true },
-  { to: "/thread", icon: "🧵", label: "Thread & suppliers", step: 1 },
+  { to: "/thread", icon: "🧵", label: "Thread & suppliers", step: 1, section: "Daily work" },
   { to: "/rods", icon: "🧶", label: "Rods & thread to weavers", step: 2 },
   { to: "/weavers", icon: "👷", label: "Weavers & machines" },
   { to: "/lots", icon: "📦", label: "Lots received", step: 5 },
   { to: "/payments", icon: "💰", label: "Weaver payments", step: 6 },
   { to: "/cutting", icon: "✂️", label: "Cutting & stock", step: 7 },
   { to: "/sales", icon: "🧾", label: "Sales & customers", step: 8 },
-  { to: "/reports", icon: "📊", label: "Reports" },
+  { to: "/reports", icon: "📊", label: "Reports", section: "Reports & settings" },
   { to: "/settings", icon: "⚙️", label: "Settings & backup" },
 ];
 
@@ -48,11 +48,14 @@ export default function App() {
         </div>
         <nav>
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav ${isActive ? "active" : ""}`}>
+            <Fragment key={n.to}>
+              {n.section && <div className="nav-section">{n.section}</div>}
+            <NavLink to={n.to} end={n.end} className={({ isActive }) => `nav ${isActive ? "active" : ""}`}>
               <span className="nav-icon">{n.icon}</span>
               <span className="nav-label">{n.label}</span>
               {n.step && <span className="nav-step">{n.step}</span>}
             </NavLink>
+            </Fragment>
           ))}
         </nav>
       </aside>
